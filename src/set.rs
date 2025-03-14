@@ -1,7 +1,6 @@
-use crate::raw::utils::MapGuard;
 use crate::raw::{self, InsertResult};
 use crate::Equivalent;
-use seize::{Collector, Guard, LocalGuard, OwnedGuard};
+use seize::{Collector, LocalGuard, OwnedGuard};
 
 use crate::map::ResizeMode;
 use std::collections::hash_map::RandomState;
@@ -258,9 +257,8 @@ impl<K, S> HashSet<K, S> {
     /// The returned reference manages a guard internally, preventing garbage collection
     /// for as long as it is held. See the [crate-level documentation](crate#usage) for details.
     #[inline]
-    pub fn pin(&self) -> HashSetRef<'_, K, S, LocalGuard<'_>> {
+    pub fn pin(&self) -> HashSetRef<'_, K, S> {
         HashSetRef {
-            guard: self.raw.guard(),
             set: self,
         }
     }
@@ -274,9 +272,8 @@ impl<K, S> HashSet<K, S> {
     /// The returned reference manages a guard internally, preventing garbage collection
     /// for as long as it is held. See the [crate-level documentation](crate#usage) for details.
     #[inline]
-    pub fn pin_owned(&self) -> HashSetRef<'_, K, S, OwnedGuard<'_>> {
+    pub fn pin_owned(&self) -> HashSetRef<'_, K, S> {
         HashSetRef {
-            guard: self.raw.owned_guard(),
             set: self,
         }
     }
@@ -365,11 +362,11 @@ where
     /// assert_eq!(set.pin().contains(&2), false);
     /// ```
     #[inline]
-    pub fn contains<Q>(&self, key: &Q, guard: &impl Guard) -> bool
+    pub fn contains<Q>(&self, key: &Q) -> bool
     where
         Q: Equivalent<K> + Hash + ?Sized,
     {
-        self.get(key, self.raw.verify(guard)).is_some()
+        self.get(key).is_some()
     }
 
     /// Returns a reference to the value corresponding to the key.
@@ -392,11 +389,11 @@ where
     /// assert_eq!(set.pin().get(&2), None);
     /// ```
     #[inline]
-    pub fn get<'g, Q>(&self, key: &Q, guard: &'g impl Guard) -> Option<&'g K>
+    pub fn get<'g, Q>(&self, key: &Q) -> Option<&'g K>
     where
         Q: Equivalent<K> + Hash + ?Sized,
     {
-        match self.raw.get(key, self.raw.verify(guard)) {
+        match self.raw.get(key) {
             Some((key, _)) => Some(key),
             None => None,
         }
@@ -426,8 +423,8 @@ where
     /// assert_eq!(set.pin().get(&37), Some(&37));
     /// ```
     #[inline]
-    pub fn insert(&self, key: K, guard: &impl Guard) -> bool {
-        match self.raw.insert(key, (), true, self.raw.verify(guard)) {
+    pub fn insert(&self, key: K) -> bool {
+        match self.raw.insert(key, (), true) {
             InsertResult::Inserted(_) => true,
             InsertResult::Replaced(_) => false,
             InsertResult::Error { .. } => unreachable!(),
@@ -452,11 +449,11 @@ where
     /// assert_eq!(set.pin().remove(&1), false);
     /// ```
     #[inline]
-    pub fn remove<Q>(&self, key: &Q, guard: &impl Guard) -> bool
+    pub fn remove<Q>(&self, key: &Q) -> bool
     where
         Q: Equivalent<K> + Hash + ?Sized,
     {
-        match self.raw.remove(key, self.raw.verify(guard)) {
+        match self.raw.remove(key) {
             Some((_, _)) => true,
             None => false,
         }
@@ -483,8 +480,8 @@ where
     /// set.pin().reserve(10);
     /// ```
     #[inline]
-    pub fn reserve(&self, additional: usize, guard: &impl Guard) {
-        self.raw.reserve(additional, self.raw.verify(guard))
+    pub fn reserve(&self, additional: usize) {
+        self.raw.reserve(additional)
     }
 
     /// Clears the set, removing all values.
@@ -505,8 +502,8 @@ where
     /// assert!(set.pin().is_empty());
     /// ```
     #[inline]
-    pub fn clear(&self, guard: &impl Guard) {
-        self.raw.clear(self.raw.verify(guard))
+    pub fn clear(&self) {
+        self.raw.clear()
     }
 
     /// Retains only the elements specified by the predicate.
@@ -533,11 +530,11 @@ where
     /// assert_eq!(set.pin().contains(&2), true);
     /// ```
     #[inline]
-    pub fn retain<F>(&mut self, mut f: F, guard: &impl Guard)
+    pub fn retain<F>(&mut self, mut f: F)
     where
         F: FnMut(&K) -> bool,
     {
-        self.raw.retain(|k, _| f(k), self.raw.verify(guard))
+        self.raw.retain(|k, _| f(k))
     }
 
     /// An iterator visiting all values in arbitrary order.
@@ -561,12 +558,9 @@ where
     ///     println!("val: {val}");
     /// }
     #[inline]
-    pub fn iter<'g, G>(&self, guard: &'g G) -> Iter<'g, K, G>
-    where
-        G: Guard,
-    {
+    pub fn iter<'g>(&self) -> Iter<'g, K> {
         Iter {
-            raw: self.raw.iter(self.raw.verify(guard)),
+            raw: self.raw.iter(),
         }
     }
 }
@@ -581,10 +575,8 @@ where
             return false;
         }
 
-        let (guard1, guard2) = (&self.guard(), &other.guard());
-
-        let mut iter = self.iter(guard1);
-        iter.all(|key| other.get(key, guard2).is_some())
+        let mut iter = self.iter();
+        iter.all(|key| other.get(key).is_some())
     }
 }
 
@@ -601,8 +593,7 @@ where
     S: BuildHasher,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let guard = self.guard();
-        f.debug_set().entries(self.iter(&guard)).finish()
+        f.debug_set().entries(self.iter()).finish()
     }
 }
 
@@ -624,11 +615,10 @@ where
             (iter.size_hint().0 + 1) / 2
         };
 
-        let guard = self.guard();
-        self.reserve(reserve, &guard);
+        self.reserve(reserve);
 
         for key in iter {
-            self.insert(key, &guard);
+            self.insert(key);
         }
     }
 }
@@ -696,9 +686,8 @@ where
             .build();
 
         {
-            let (guard1, guard2) = (&self.guard(), &other.guard());
-            for key in self.iter(guard1) {
-                other.insert(key.clone(), guard2);
+            for key in self.iter() {
+                other.insert(key.clone());
             }
         }
 
@@ -710,16 +699,14 @@ where
 ///
 /// This type is created with [`HashSet::pin`] and can be used to easily access a [`HashSet`]
 /// without explicitly managing a guard. See the [crate-level documentation](crate#usage) for details.
-pub struct HashSetRef<'set, K, S, G> {
-    guard: MapGuard<G>,
+pub struct HashSetRef<'set, K, S> {
     set: &'set HashSet<K, S>,
 }
 
-impl<'set, K, S, G> HashSetRef<'set, K, S, G>
+impl<'set, K, S> HashSetRef<'set, K, S>
 where
     K: Hash + Eq,
     S: BuildHasher,
-    G: Guard,
 {
     /// Returns a reference to the inner [`HashSet`].
     #[inline]
@@ -762,7 +749,7 @@ where
     where
         Q: Equivalent<K> + Hash + ?Sized,
     {
-        match self.set.raw.get(key, &self.guard) {
+        match self.set.raw.get(key) {
             Some((k, _)) => Some(k),
             None => None,
         }
@@ -773,7 +760,7 @@ where
     /// See [`HashSet::insert`] for details.
     #[inline]
     pub fn insert(&self, key: K) -> bool {
-        match self.set.raw.insert(key, (), true, &self.guard) {
+        match self.set.raw.insert(key, (), true) {
             InsertResult::Inserted(_) => true,
             InsertResult::Replaced(_) => false,
             InsertResult::Error { .. } => unreachable!(),
@@ -789,7 +776,7 @@ where
     where
         Q: Equivalent<K> + Hash + ?Sized,
     {
-        match self.set.raw.remove(key, &self.guard) {
+        match self.set.raw.remove(key) {
             Some((_, _)) => true,
             None => false,
         }
@@ -800,7 +787,7 @@ where
     /// See [`HashSet::clear`] for details.
     #[inline]
     pub fn clear(&self) {
-        self.set.raw.clear(&self.guard)
+        self.set.raw.clear()
     }
 
     /// Retains only the elements specified by the predicate.
@@ -811,7 +798,7 @@ where
     where
         F: FnMut(&K) -> bool,
     {
-        self.set.raw.retain(|k, _| f(k), &self.guard)
+        self.set.raw.retain(|k, _| f(k))
     }
 
     /// Tries to reserve capacity for `additional` more elements to be inserted
@@ -820,7 +807,7 @@ where
     /// See [`HashSet::reserve`] for details.
     #[inline]
     pub fn reserve(&self, additional: usize) {
-        self.set.raw.reserve(additional, &self.guard)
+        self.set.raw.reserve(additional)
     }
 
     /// An iterator visiting all values in arbitrary order.
@@ -828,32 +815,30 @@ where
     ///
     /// See [`HashSet::iter`] for details.
     #[inline]
-    pub fn iter(&self) -> Iter<'_, K, G> {
+    pub fn iter(&self) -> Iter<'_, K> {
         Iter {
-            raw: self.set.raw.iter(&self.guard),
+            raw: self.set.raw.iter(),
         }
     }
 }
 
-impl<K, S, G> fmt::Debug for HashSetRef<'_, K, S, G>
+impl<K, S> fmt::Debug for HashSetRef<'_, K, S>
 where
     K: Hash + Eq + fmt::Debug,
     S: BuildHasher,
-    G: Guard,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_set().entries(self.iter()).finish()
     }
 }
 
-impl<'a, K, S, G> IntoIterator for &'a HashSetRef<'_, K, S, G>
+impl<'a, K, S> IntoIterator for &'a HashSetRef<'_, K, S>
 where
     K: Hash + Eq,
     S: BuildHasher,
-    G: Guard,
 {
     type Item = &'a K;
-    type IntoIter = Iter<'a, K, G>;
+    type IntoIter = Iter<'a, K>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
@@ -863,14 +848,11 @@ where
 /// An iterator over a set's entries.
 ///
 /// This struct is created by the [`iter`](HashSet::iter) method on [`HashSet`]. See its documentation for details.
-pub struct Iter<'g, K, G> {
-    raw: raw::Iter<'g, K, (), MapGuard<G>>,
+pub struct Iter<'g, K> {
+    raw: raw::Iter<'g, K, ()>,
 }
 
-impl<'g, K: 'g, G> Iterator for Iter<'g, K, G>
-where
-    G: Guard,
-{
+impl<'g, K: 'g> Iterator for Iter<'g, K> {
     type Item = &'g K;
 
     #[inline]
@@ -879,10 +861,9 @@ where
     }
 }
 
-impl<K, G> fmt::Debug for Iter<'_, K, G>
+impl<K> fmt::Debug for Iter<'_, K>
 where
     K: fmt::Debug,
-    G: Guard,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list()

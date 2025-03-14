@@ -17,15 +17,14 @@ fn new() {
 fn clear() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
         {
-            map.insert(0, 1, &guard);
-            map.insert(1, 1, &guard);
-            map.insert(2, 1, &guard);
-            map.insert(3, 1, &guard);
-            map.insert(4, 1, &guard);
+            map.insert(0, 1);
+            map.insert(1, 1);
+            map.insert(2, 1);
+            map.insert(3, 1);
+            map.insert(4, 1);
         }
-        map.clear(&guard);
+        map.clear();
         assert!(map.is_empty());
     });
 }
@@ -34,8 +33,7 @@ fn clear() {
 fn insert() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
-        let old = map.insert(42, 0, &guard);
+        let old = map.insert(42, 0);
         assert!(old.is_none());
     });
 }
@@ -44,8 +42,7 @@ fn insert() {
 fn get_empty() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
-        let e = map.get(&42, &guard);
+        let e = map.get(&42);
         assert!(e.is_none());
     });
 }
@@ -54,8 +51,7 @@ fn get_empty() {
 fn get_key_value_empty() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
-        let e = map.get_key_value(&42, &guard);
+        let e = map.get_key_value(&42);
         assert!(e.is_none());
     });
 }
@@ -64,8 +60,7 @@ fn get_key_value_empty() {
 fn remove_empty() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
-        let old = map.remove(&42, &guard);
+        let old = map.remove(&42);
         assert!(old.is_none());
     });
 }
@@ -94,11 +89,10 @@ fn remove_if() {
 fn insert_and_remove() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
-        map.insert(42, 0, &guard);
-        let old = map.remove(&42, &guard).unwrap();
+        map.insert(42, 0);
+        let old = map.remove(&42).unwrap();
         assert_eq!(old, &0);
-        assert!(map.get(&42, &guard).is_none());
+        assert!(map.get(&42).is_none());
     });
 }
 
@@ -106,11 +100,10 @@ fn insert_and_remove() {
 fn insert_and_get() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        map.insert(42, 0, &map.guard());
+        map.insert(42, 0);
 
         {
-            let guard = map.guard();
-            let e = map.get(&42, &guard).unwrap();
+            let e = map.get(&42).unwrap();
             assert_eq!(e, &0);
         }
     });
@@ -120,11 +113,10 @@ fn insert_and_get() {
 fn insert_and_get_key_value() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        map.insert(42, 0, &map.guard());
+        map.insert(42, 0);
 
         {
-            let guard = map.guard();
-            let e = map.get_key_value(&42, &guard).unwrap();
+            let e = map.get_key_value(&42).unwrap();
             assert_eq!(e, (&42, &0));
         }
     });
@@ -134,14 +126,12 @@ fn insert_and_get_key_value() {
 fn reinsert() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
-        map.insert(42, 0, &guard);
-        let old = map.insert(42, 1, &guard);
+        map.insert(42, 0);
+        let old = map.insert(42, 1);
         assert_eq!(old, Some(&0));
 
         {
-            let guard = map.guard();
-            let e = map.get(&42, &guard).unwrap();
+            let e = map.get(&42).unwrap();
             assert_eq!(e, &1);
         }
     });
@@ -151,16 +141,14 @@ fn reinsert() {
 fn update() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
-        map.insert(42, 0, &guard);
+        map.insert(42, 0);
         assert_eq!(map.len(), 1);
-        let new = map.update(42, |v| v + 1, &guard);
+        let new = map.update(42, |v| v + 1);
         assert_eq!(map.len(), 1);
         assert_eq!(new, Some(&1));
 
         {
-            let guard = map.guard();
-            let e = map.get(&42, &guard).unwrap();
+            let e = map.get(&42).unwrap();
             assert_eq!(e, &1);
         }
     });
@@ -170,13 +158,11 @@ fn update() {
 fn update_empty() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
-        let new = map.update(42, |v| v + 1, &guard);
+        let new = map.update(42, |v| v + 1);
         assert!(new.is_none());
 
         {
-            let guard = map.guard();
-            assert!(map.get(&42, &guard).is_none());
+            assert!(map.get(&42).is_none());
         }
     });
 }
@@ -185,29 +171,26 @@ fn update_empty() {
 fn update_or_insert() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
 
-        let result = map.update_or_insert(42, |v| v + 1, 0, &guard);
+        let result = map.update_or_insert(42, |v| v + 1, 0);
         assert_eq!(result, &0);
         assert_eq!(map.len(), 1);
 
         {
-            let guard = map.guard();
-            let e = map.get(&42, &guard).unwrap();
+            let e = map.get(&42).unwrap();
             assert_eq!(e, &0);
         }
 
-        let result = map.update_or_insert(42, |v| v + 1, 0, &guard);
+        let result = map.update_or_insert(42, |v| v + 1, 0);
         assert_eq!(result, &1);
         assert_eq!(map.len(), 1);
 
-        let result = map.update_or_insert(42, |v| v + 1, 0, &guard);
+        let result = map.update_or_insert(42, |v| v + 1, 0);
         assert_eq!(result, &2);
         assert_eq!(map.len(), 1);
 
         {
-            let guard = map.guard();
-            let e = map.get(&42, &guard).unwrap();
+            let e = map.get(&42).unwrap();
             assert_eq!(e, &2);
         }
     });
@@ -217,29 +200,26 @@ fn update_or_insert() {
 fn update_or_insert_with() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
 
-        let result = map.update_or_insert_with(42, |v| v + 1, || 0, &guard);
+        let result = map.update_or_insert_with(42, |v| v + 1, || 0);
         assert_eq!(result, &0);
         assert_eq!(map.len(), 1);
 
         {
-            let guard = map.guard();
-            let e = map.get(&42, &guard).unwrap();
+            let e = map.get(&42).unwrap();
             assert_eq!(e, &0);
         }
 
-        let result = map.update_or_insert_with(42, |v| v + 1, || 0, &guard);
+        let result = map.update_or_insert_with(42, |v| v + 1, || 0);
         assert_eq!(result, &1);
         assert_eq!(map.len(), 1);
 
-        let result = map.update_or_insert_with(42, |v| v + 1, || 0, &guard);
+        let result = map.update_or_insert_with(42, |v| v + 1, || 0);
         assert_eq!(result, &2);
         assert_eq!(map.len(), 1);
 
         {
-            let guard = map.guard();
-            let e = map.get(&42, &guard).unwrap();
+            let e = map.get(&42).unwrap();
             assert_eq!(e, &2);
         }
     });
@@ -249,19 +229,17 @@ fn update_or_insert_with() {
 fn get_or_insert() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
 
-        let result = map.get_or_insert(42, 0, &guard);
+        let result = map.get_or_insert(42, 0);
         assert_eq!(result, &0);
         assert_eq!(map.len(), 1);
 
         {
-            let guard = map.guard();
-            let e = map.get(&42, &guard).unwrap();
+            let e = map.get(&42).unwrap();
             assert_eq!(e, &0);
         }
 
-        let result = map.get_or_insert(42, 1, &guard);
+        let result = map.get_or_insert(42, 1);
         assert_eq!(result, &0);
         assert_eq!(map.len(), 1);
     });
@@ -271,19 +249,17 @@ fn get_or_insert() {
 fn try_insert() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
 
-        assert_eq!(map.try_insert(42, 1, &guard), Ok(&1));
+        assert_eq!(map.try_insert(42, 1), Ok(&1));
         assert_eq!(map.len(), 1);
 
         {
-            let guard = map.guard();
-            let e = map.get(&42, &guard).unwrap();
+            let e = map.get(&42).unwrap();
             assert_eq!(e, &1);
         }
 
         assert_eq!(
-            map.try_insert(42, 2, &guard),
+            map.try_insert(42, 2),
             Err(OccupiedError {
                 current: &1,
                 not_inserted: 2
@@ -292,12 +268,11 @@ fn try_insert() {
         assert_eq!(map.len(), 1);
 
         {
-            let guard = map.guard();
-            let e = map.get(&42, &guard).unwrap();
+            let e = map.get(&42).unwrap();
             assert_eq!(e, &1);
         }
 
-        assert_eq!(map.try_insert(43, 2, &guard), Ok(&2));
+        assert_eq!(map.try_insert(43, 2), Ok(&2));
     });
 }
 
@@ -305,14 +280,12 @@ fn try_insert() {
 fn try_insert_with() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
 
-        map.try_insert_with(42, || 1, &guard).unwrap();
+        map.try_insert_with(42, || 1).unwrap();
         assert_eq!(map.len(), 1);
 
         {
-            let guard = map.guard();
-            let e = map.get(&42, &guard).unwrap();
+            let e = map.get(&42).unwrap();
             assert_eq!(e, &1);
         }
 
@@ -321,17 +294,16 @@ fn try_insert_with() {
             called = true;
             2
         };
-        assert_eq!(map.try_insert_with(42, insert, &guard), Err(&1));
+        assert_eq!(map.try_insert_with(42, insert), Err(&1));
         assert_eq!(map.len(), 1);
         assert!(!called);
 
         {
-            let guard = map.guard();
-            let e = map.get(&42, &guard).unwrap();
+            let e = map.get(&42).unwrap();
             assert_eq!(e, &1);
         }
 
-        assert_eq!(map.try_insert_with(43, || 2, &guard), Ok(&2));
+        assert_eq!(map.try_insert_with(43, || 2), Ok(&2));
     });
 }
 
@@ -339,19 +311,17 @@ fn try_insert_with() {
 fn get_or_insert_with() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
 
-        let result = map.get_or_insert_with(42, || 0, &guard);
+        let result = map.get_or_insert_with(42, || 0);
         assert_eq!(result, &0);
         assert_eq!(map.len(), 1);
 
         {
-            let guard = map.guard();
-            let e = map.get(&42, &guard).unwrap();
+            let e = map.get(&42).unwrap();
             assert_eq!(e, &0);
         }
 
-        let result = map.get_or_insert_with(42, || 1, &guard);
+        let result = map.get_or_insert_with(42, || 1);
         assert_eq!(result, &0);
         assert_eq!(map.len(), 1);
     });
@@ -399,25 +369,24 @@ fn concurrent_insert() {
         let map1 = map.clone();
         let t1 = std::thread::spawn(move || {
             for i in 0..64 {
-                map1.insert(i, 0, &map1.guard());
+                map1.insert(i, 0);
             }
         });
         let map2 = map.clone();
         let t2 = std::thread::spawn(move || {
             for i in 0..64 {
-                map2.insert(i, 1, &map2.guard());
+                map2.insert(i, 1);
             }
         });
 
         t1.join().unwrap();
         t2.join().unwrap();
 
-        let guard = map.guard();
         for i in 0..64 {
-            let v = map.get(&i, &guard).unwrap();
+            let v = map.get(&i).unwrap();
             assert!(v == &0 || v == &1);
 
-            let kv = map.get_key_value(&i, &guard).unwrap();
+            let kv = map.get_key_value(&i).unwrap();
             assert!(kv == (&i, &0) || kv == (&i, &1));
         }
     });
@@ -430,26 +399,23 @@ fn concurrent_remove() {
         let map = Arc::new(map);
 
         {
-            let guard = map.guard();
             for i in 0..64 {
-                map.insert(i, i, &guard);
+                map.insert(i, i);
             }
         }
 
         let map1 = map.clone();
         let t1 = std::thread::spawn(move || {
-            let guard = map1.guard();
             for i in 0..64 {
-                if let Some(v) = map1.remove(&i, &guard) {
+                if let Some(v) = map1.remove(&i) {
                     assert_eq!(v, &i);
                 }
             }
         });
         let map2 = map.clone();
         let t2 = std::thread::spawn(move || {
-            let guard = map2.guard();
             for i in 0..64 {
-                if let Some(v) = map2.remove(&i, &guard) {
+                if let Some(v) = map2.remove(&i) {
                     assert_eq!(v, &i);
                 }
             }
@@ -459,9 +425,8 @@ fn concurrent_remove() {
         t2.join().unwrap();
 
         // after joining the threads, the map should be empty
-        let guard = map.guard();
         for i in 0..64 {
-            assert!(map.get(&i, &guard).is_none());
+            assert!(map.get(&i).is_none());
         }
     });
 }
@@ -473,25 +438,22 @@ fn concurrent_update() {
         let map = Arc::new(map);
 
         {
-            let guard = map.guard();
             for i in 0..64 {
-                map.insert(i, i, &guard);
+                map.insert(i, i);
             }
         }
 
         let map1 = map.clone();
         let t1 = std::thread::spawn(move || {
-            let guard = map1.guard();
             for i in 0..64 {
-                let new = *map1.update(i, |v| v + 1, &guard).unwrap();
+                let new = *map1.update(i, |v| v + 1).unwrap();
                 assert!(new == i + 1 || new == i + 2);
             }
         });
         let map2 = map.clone();
         let t2 = std::thread::spawn(move || {
-            let guard = map2.guard();
             for i in 0..64 {
-                let new = *map2.update(i, |v| v + 1, &guard).unwrap();
+                let new = *map2.update(i, |v| v + 1).unwrap();
                 assert!(new == i + 1 || new == i + 2);
             }
         });
@@ -500,9 +462,8 @@ fn concurrent_update() {
         t2.join().unwrap();
 
         // after joining the threads, the map should be empty
-        let guard = map.guard();
         for i in 0..64 {
-            assert_eq!(map.get(&i, &guard), Some(&(i + 2)));
+            assert_eq!(map.get(&i), Some(&(i + 2)));
         }
     });
 }
@@ -519,28 +480,25 @@ fn concurrent_resize_and_get() {
         let map = Arc::new(map);
 
         {
-            let guard = map.guard();
             for i in 0..1024 {
-                map.insert(i, i, &guard);
+                map.insert(i, i);
             }
         }
 
         let map1 = map.clone();
         // t1 is using reserve to trigger a bunch of resizes
         let t1 = std::thread::spawn(move || {
-            let guard = map1.guard();
             // there should be 2 ** 10 capacity already, so trigger additional resizes
             for power in 11..16 {
-                map1.reserve(1 << power, &guard);
+                map1.reserve(1 << power);
             }
         });
         let map2 = map.clone();
         // t2 is retrieving existing keys a lot, attempting to encounter a BinEntry::Moved
         let t2 = std::thread::spawn(move || {
-            let guard = map2.guard();
             for _ in 0..32 {
                 for i in 0..1024 {
-                    let v = map2.get(&i, &guard).unwrap();
+                    let v = map2.get(&i).unwrap();
                     assert_eq!(v, &i);
                 }
             }
@@ -551,10 +509,9 @@ fn concurrent_resize_and_get() {
 
         // make sure all the entries still exist after all the resizes
         {
-            let guard = map.guard();
 
             for i in 0..1024 {
-                let v = map.get(&i, &guard).unwrap();
+                let v = map.get(&i).unwrap();
                 assert_eq!(v, &i);
             }
         }
@@ -568,7 +525,7 @@ fn current_kv_dropped() {
 
     with_map::<Arc<usize>, Arc<usize>>(|map| {
         let map = map();
-        map.insert(dropped1.clone(), dropped2.clone(), &map.guard());
+        map.insert(dropped1.clone(), dropped2.clone());
         assert_eq!(Arc::strong_count(&dropped1), 2);
         assert_eq!(Arc::strong_count(&dropped2), 2);
 
@@ -599,15 +556,13 @@ fn different_size_maps_not_equal() {
         with_map::<usize, usize>(|map2| {
             let map2 = map2();
             {
-                let guard1 = map1.guard();
-                let guard2 = map2.guard();
 
-                map1.insert(1, 0, &guard1);
-                map1.insert(2, 0, &guard1);
-                map1.insert(3, 0, &guard1);
+                map1.insert(1, 0);
+                map1.insert(2, 0);
+                map1.insert(3, 0);
 
-                map2.insert(1, 0, &guard2);
-                map2.insert(2, 0, &guard2);
+                map2.insert(1, 0);
+                map2.insert(2, 0);
             }
 
             assert_ne!(map1, map2);
@@ -666,14 +621,14 @@ fn clone_map_empty() {
 fn clone_map_filled() {
     with_map::<&'static str, u32>(|map| {
         let map = map();
-        map.insert("FooKey", 0, &map.guard());
-        map.insert("BarKey", 10, &map.guard());
+        map.insert("FooKey", 0);
+        map.insert("BarKey", 10);
         let cloned_map = map.clone();
         assert_eq!(map.len(), cloned_map.len());
         assert_eq!(&map, &cloned_map);
 
         // test that we are not mapping the same tables
-        map.insert("NewItem", 100, &map.guard());
+        map.insert("NewItem", 100);
         assert_ne!(&map, &cloned_map);
     });
 }
@@ -682,10 +637,9 @@ fn clone_map_filled() {
 fn default() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
-        map.insert(42, 0, &guard);
+        map.insert(42, 0);
 
-        assert_eq!(map.get(&42, &guard), Some(&0));
+        assert_eq!(map.get(&42), Some(&0));
     });
 }
 
@@ -693,9 +647,8 @@ fn default() {
 fn debug() {
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
-        map.insert(42, 0, &guard);
-        map.insert(16, 8, &guard);
+        map.insert(42, 0);
+        map.insert(16, 8);
 
         let formatted = format!("{:?}", map);
 
@@ -711,17 +664,14 @@ fn extend() {
 
     with_map::<usize, usize>(|map| {
         let map = map();
-        let guard = map.guard();
 
         let mut entries: Vec<(usize, usize)> = vec![(42, 0), (16, 6), (38, 42)];
         entries.sort_unstable();
 
         (&map).extend(entries.clone().into_iter());
 
-        let mut collected: Vec<(usize, usize)> = map
-            .iter(&guard)
-            .map(|(key, value)| (*key, *value))
-            .collect();
+        let mut collected: Vec<(usize, usize)> =
+            map.iter().map(|(key, value)| (*key, *value)).collect();
         collected.sort_unstable();
 
         assert_eq!(entries, collected);
@@ -741,8 +691,7 @@ fn extend_ref() {
 
         (&map).extend(entries.clone().into_iter());
 
-        let guard = map.guard();
-        let mut collected: Vec<(&usize, &usize)> = map.iter(&guard).collect();
+        let mut collected: Vec<(&usize, &usize)> = map.iter().collect();
         collected.sort();
 
         assert_eq!(entries, collected);
@@ -918,18 +867,17 @@ mod hasher {
 
         with_map::<i32, i32>(|map| {
             let map = map();
-            let guard = map.guard();
             for i in range.clone() {
-                map.insert(i, i, &guard);
+                map.insert(i, i);
             }
 
-            assert!(!map.contains_key(&i32::min_value(), &guard));
-            assert!(!map.contains_key(&(range.start - 1), &guard));
+            assert!(!map.contains_key(&i32::min_value()));
+            assert!(!map.contains_key(&(range.start - 1)));
             for i in range.clone() {
-                assert!(map.contains_key(&i, &guard));
+                assert!(map.contains_key(&i));
             }
-            assert!(!map.contains_key(&range.end, &guard));
-            assert!(!map.contains_key(&i32::max_value(), &guard));
+            assert!(!map.contains_key(&range.end));
+            assert!(!map.contains_key(&i32::max_value()));
         });
     }
 

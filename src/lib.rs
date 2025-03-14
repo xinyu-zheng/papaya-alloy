@@ -214,21 +214,22 @@
 //!
 //! [benchmarks]: https://github.com/ibraheemdev/papaya/blob/master/BENCHMARKS.md
 
-#![deny(
-    missing_debug_implementations,
-    missing_docs,
-    dead_code,
-    unsafe_op_in_unsafe_fn
-)]
+#![deny(missing_debug_implementations, missing_docs, unsafe_op_in_unsafe_fn)]
 // Polyfills for unstable APIs related to strict-provenance.
 #![allow(unstable_name_collisions)]
 // Stylistic preferences.
 #![allow(clippy::multiple_bound_locations, clippy::single_match)]
 // Clippy trips up with pollyfills.
 #![allow(clippy::incompatible_msrv)]
+#![feature(gc)]
+use std::gc::GcAllocator;
+
+#[global_allocator]
+static A: GcAllocator = GcAllocator;
 
 mod map;
 mod raw;
+mod reclaim;
 mod set;
 
 #[cfg(feature = "serde")]

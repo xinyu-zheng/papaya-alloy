@@ -3,6 +3,8 @@ use std::marker::PhantomData;
 use std::sync::atomic::{AtomicPtr, AtomicU8, Ordering};
 use std::{alloc, mem, ptr};
 
+use crate::reclaim::Atomic;
+
 use super::{probe, State};
 
 // A hash-table laid out in a single allocation.
@@ -146,13 +148,13 @@ impl<T> Table<T> {
     //
     // The index must be in-bounds for the length of the table.
     #[inline]
-    pub unsafe fn entry(&self, i: usize) -> &AtomicPtr<T> {
+    pub unsafe fn entry(&self, i: usize) -> &Atomic<T> {
         debug_assert!(i < self.len());
 
         // Safety: The caller guarantees the index is in-bounds.
         unsafe {
             let meta = self.raw.add(mem::size_of::<TableLayout<T>>());
-            let entries = meta.add(self.len()).cast::<AtomicPtr<T>>();
+            let entries = meta.add(self.len()).cast::<Atomic<T>>();
             &*entries.add(i)
         }
     }

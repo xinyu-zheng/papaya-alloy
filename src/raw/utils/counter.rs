@@ -30,11 +30,13 @@ impl Default for Counter {
 impl Counter {
     // Return the shard for the given thread ID.
     #[inline]
-    pub fn get(&self, guard: &impl seize::Guard) -> &AtomicIsize {
+    pub fn get(&self) -> &AtomicIsize {
         // Guard thread IDs are essentially perfectly sharded due to
         // the internal thread ID allocator, which makes contention
         // very unlikely even with the exact number of shards as CPUs.
-        let shard = guard.thread_id() & (self.0.len() - 1);
+        // FIXME
+        //let shard = guard.thread_id() & (self.0.len() - 1);
+        let shard = 0 & (self.0.len() - 1);
 
         &self.0[shard].value
     }

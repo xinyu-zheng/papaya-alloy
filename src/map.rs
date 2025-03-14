@@ -1,7 +1,6 @@
-use crate::raw::utils::MapGuard;
 use crate::raw::{self, InsertResult};
 use crate::Equivalent;
-use seize::{Collector, Guard, LocalGuard, OwnedGuard};
+use seize::{Collector, LocalGuard, OwnedGuard};
 
 use std::collections::hash_map::RandomState;
 use std::fmt;
@@ -312,9 +311,8 @@ impl<K, V, S> HashMap<K, V, S> {
     /// The returned reference manages a guard internally, preventing garbage collection
     /// for as long as it is held. See the [crate-level documentation](crate#usage) for details.
     #[inline]
-    pub fn pin(&self) -> HashMapRef<'_, K, V, S, LocalGuard<'_>> {
+    pub fn pin(&self) -> HashMapRef<'_, K, V, S> {
         HashMapRef {
-            guard: self.raw.guard(),
             map: self,
         }
     }
@@ -328,9 +326,8 @@ impl<K, V, S> HashMap<K, V, S> {
     /// The returned reference manages a guard internally, preventing garbage collection
     /// for as long as it is held. See the [crate-level documentation](crate#usage) for details.
     #[inline]
-    pub fn pin_owned(&self) -> HashMapRef<'_, K, V, S, OwnedGuard<'_>> {
+    pub fn pin_owned(&self) -> HashMapRef<'_, K, V, S> {
         HashMapRef {
-            guard: self.raw.owned_guard(),
             map: self,
         }
     }
@@ -419,11 +416,11 @@ where
     /// assert_eq!(map.pin().contains_key(&2), false);
     /// ```
     #[inline]
-    pub fn contains_key<Q>(&self, key: &Q, guard: &impl Guard) -> bool
+    pub fn contains_key<Q>(&self, key: &Q) -> bool
     where
         Q: Equivalent<K> + Hash + ?Sized,
     {
-        self.get(key, self.raw.verify(guard)).is_some()
+        self.get(key).is_some()
     }
 
     /// Returns a reference to the value corresponding to the key.
@@ -446,12 +443,12 @@ where
     /// assert_eq!(map.pin().get(&2), None);
     /// ```
     #[inline]
-    pub fn get<'g, Q>(&self, key: &Q, guard: &'g impl Guard) -> Option<&'g V>
+    pub fn get<'g, Q>(&self, key: &Q) -> Option<&'g V>
     where
         K: 'g,
         Q: Equivalent<K> + Hash + ?Sized,
     {
-        match self.raw.get(key, self.raw.verify(guard)) {
+        match self.raw.get(key) {
             Some((_, v)) => Some(v),
             None => None,
         }
@@ -477,11 +474,11 @@ where
     /// assert_eq!(map.pin().get_key_value(&2), None);
     /// ```
     #[inline]
-    pub fn get_key_value<'g, Q>(&self, key: &Q, guard: &'g impl Guard) -> Option<(&'g K, &'g V)>
+    pub fn get_key_value<'g, Q>(&self, key: &Q) -> Option<(&'g K, &'g V)>
     where
         Q: Equivalent<K> + Hash + ?Sized,
     {
-        self.raw.get(key, self.raw.verify(guard))
+        self.raw.get(key)
     }
 
     /// Inserts a key-value pair into the map.
@@ -509,8 +506,8 @@ where
     /// assert_eq!(map.pin().get(&37), Some(&"c"));
     /// ```
     #[inline]
-    pub fn insert<'g>(&self, key: K, value: V, guard: &'g impl Guard) -> Option<&'g V> {
-        match self.raw.insert(key, value, true, self.raw.verify(guard)) {
+    pub fn insert<'g>(&self, key: K, value: V) -> Option<&'g V> {
+        match self.raw.insert(key, value, true) {
             InsertResult::Inserted(_) => None,
             InsertResult::Replaced(value) => Some(value),
             InsertResult::Error { .. } => unreachable!(),
@@ -538,14 +535,9 @@ where
     /// assert_eq!(err.not_inserted, "b");
     /// ```
     #[inline]
-    pub fn try_insert<'g>(
-        &self,
-        key: K,
-        value: V,
-        guard: &'g impl Guard,
-    ) -> Result<&'g V, OccupiedError<'g, V>> {
+    pub fn try_insert<'g>(&self, key: K, value: V) -> Result<&'g V, OccupiedError<'g, V>> {
         // Safety: Checked the guard above.
-        match self.raw.insert(key, value, false, self.raw.verify(guard)) {
+        match self.raw.insert(key, value, false) {
             InsertResult::Inserted(value) => Ok(value),
             InsertResult::Error {
                 current,
@@ -578,17 +570,12 @@ where
     /// assert_eq!(current, &"a");
     /// ```
     #[inline]
-    pub fn try_insert_with<'g, F>(
-        &self,
-        key: K,
-        f: F,
-        guard: &'g impl Guard,
-    ) -> Result<&'g V, &'g V>
+    pub fn try_insert_with<'g, F>(&self, key: K, f: F) -> Result<&'g V, &'g V>
     where
         F: FnOnce() -> V,
         K: 'g,
     {
-        self.raw.try_insert_with(key, f, self.raw.verify(guard))
+        self.raw.try_insert_with(key, f)
     }
 
     /// Returns a reference to the value corresponding to the key, or inserts a default value.
@@ -606,10 +593,10 @@ where
     /// assert_eq!(map.pin().get_or_insert("a", 6), &3);
     /// ```
     #[inline]
-    pub fn get_or_insert<'g>(&self, key: K, value: V, guard: &'g impl Guard) -> &'g V {
+    pub fn get_or_insert<'g>(&self, key: K, value: V) -> &'g V {
         // Note that we use `try_insert` instead of `compute` or `get_or_insert_with` here, as it
         // allows us to avoid the closure indirection.
-        match self.try_insert(key, value, guard) {
+        match self.try_insert(key, value) {
             Ok(inserted) => inserted,
             Err(OccupiedError { current, .. }) => current,
         }
@@ -633,12 +620,12 @@ where
     /// assert_eq!(map.pin().get_or_insert_with("a", || 6), &3);
     /// ```
     #[inline]
-    pub fn get_or_insert_with<'g, F>(&self, key: K, f: F, guard: &'g impl Guard) -> &'g V
+    pub fn get_or_insert_with<'g, F>(&self, key: K, f: F) -> &'g V
     where
         F: FnOnce() -> V,
         K: 'g,
     {
-        self.raw.get_or_insert_with(key, f, self.raw.verify(guard))
+        self.raw.get_or_insert_with(key, f)
     }
 
     /// Updates an existing entry atomically.
@@ -671,12 +658,12 @@ where
     /// assert_eq!(map.pin().get(&"a"), Some(&2));
     /// ```
     #[inline]
-    pub fn update<'g, F>(&self, key: K, update: F, guard: &'g impl Guard) -> Option<&'g V>
+    pub fn update<'g, F>(&self, key: K, update: F) -> Option<&'g V>
     where
         F: Fn(&V) -> V,
         K: 'g,
     {
-        self.raw.update(key, update, self.raw.verify(guard))
+        self.raw.update(key, update)
     }
 
     /// Updates an existing entry or inserts a default value.
@@ -697,18 +684,12 @@ where
     /// assert_eq!(*map.pin().update_or_insert("a", |i| i + 1, 0), 1);
     /// ```
     #[inline]
-    pub fn update_or_insert<'g, F>(
-        &self,
-        key: K,
-        update: F,
-        value: V,
-        guard: &'g impl Guard,
-    ) -> &'g V
+    pub fn update_or_insert<'g, F>(&self, key: K, update: F, value: V) -> &'g V
     where
         F: Fn(&V) -> V,
         K: 'g,
     {
-        self.update_or_insert_with(key, update, || value, guard)
+        self.update_or_insert_with(key, update, || value)
     }
 
     /// Updates an existing entry or inserts a default value computed from a closure.
@@ -730,20 +711,13 @@ where
     /// assert_eq!(*map.pin().update_or_insert_with("a", |i| i + 1, || 0), 1);
     /// ```
     #[inline]
-    pub fn update_or_insert_with<'g, U, F>(
-        &self,
-        key: K,
-        update: U,
-        f: F,
-        guard: &'g impl Guard,
-    ) -> &'g V
+    pub fn update_or_insert_with<'g, U, F>(&self, key: K, update: U, f: F) -> &'g V
     where
         F: FnOnce() -> V,
         U: Fn(&V) -> V,
         K: 'g,
     {
-        self.raw
-            .update_or_insert_with(key, update, f, self.raw.verify(guard))
+        self.raw.update_or_insert_with(key, update, f)
     }
 
     /// Updates an entry with a compare-and-swap (CAS) function.
@@ -792,16 +766,11 @@ where
     /// assert_eq!(map.compute('A', compute), Compute::Removed(&'A', &2));
     /// ```
     #[inline]
-    pub fn compute<'g, F, T>(
-        &self,
-        key: K,
-        compute: F,
-        guard: &'g impl Guard,
-    ) -> Compute<'g, K, V, T>
+    pub fn compute<'g, F, T>(&self, key: K, compute: F) -> Compute<'g, K, V, T>
     where
         F: FnMut(Option<(&'g K, &'g V)>) -> Operation<V, T>,
     {
-        self.raw.compute(key, compute, self.raw.verify(guard))
+        self.raw.compute(key, compute)
     }
 
     /// Removes a key from the map, returning the value at the key if the key
@@ -822,12 +791,12 @@ where
     /// assert_eq!(map.pin().remove(&1), None);
     /// ```
     #[inline]
-    pub fn remove<'g, Q>(&self, key: &Q, guard: &'g impl Guard) -> Option<&'g V>
+    pub fn remove<'g, Q>(&self, key: &Q) -> Option<&'g V>
     where
         K: 'g,
         Q: Equivalent<K> + Hash + ?Sized,
     {
-        match self.raw.remove(key, self.raw.verify(guard)) {
+        match self.raw.remove(key) {
             Some((_, value)) => Some(value),
             None => None,
         }
@@ -852,12 +821,12 @@ where
     /// assert_eq!(map.pin().remove(&1), None);
     /// ```
     #[inline]
-    pub fn remove_entry<'g, Q>(&self, key: &Q, guard: &'g impl Guard) -> Option<(&'g K, &'g V)>
+    pub fn remove_entry<'g, Q>(&self, key: &Q) -> Option<(&'g K, &'g V)>
     where
         K: 'g,
         Q: Equivalent<K> + Hash + ?Sized,
     {
-        self.raw.remove(key, self.raw.verify(guard))
+        self.raw.remove(key)
     }
 
     /// Conditionally removes a key from the map based on the provided closure.
@@ -889,14 +858,12 @@ where
         &self,
         key: &Q,
         should_remove: F,
-        guard: &'g impl Guard,
     ) -> Result<Option<(&'g K, &'g V)>, (&'g K, &'g V)>
     where
         Q: Equivalent<K> + Hash + ?Sized,
         F: FnMut(&K, &V) -> bool,
     {
-        self.raw
-            .remove_if(key, should_remove, self.raw.verify(guard))
+        self.raw.remove_if(key, should_remove)
     }
 
     /// Tries to reserve capacity for `additional` more elements to be inserted
@@ -920,8 +887,8 @@ where
     /// map.pin().reserve(10);
     /// ```
     #[inline]
-    pub fn reserve(&self, additional: usize, guard: &impl Guard) {
-        self.raw.reserve(additional, self.raw.verify(guard))
+    pub fn reserve(&self, additional: usize) {
+        self.raw.reserve(additional)
     }
 
     /// Clears the map, removing all key-value pairs.
@@ -942,8 +909,8 @@ where
     /// assert!(map.pin().is_empty());
     /// ```
     #[inline]
-    pub fn clear(&self, guard: &impl Guard) {
-        self.raw.clear(self.raw.verify(guard))
+    pub fn clear(&self) {
+        self.raw.clear()
     }
 
     /// Retains only the elements specified by the predicate.
@@ -968,11 +935,11 @@ where
     /// assert_eq!(map.len(), 4);
     /// ```
     #[inline]
-    pub fn retain<F>(&self, f: F, guard: &impl Guard)
+    pub fn retain<F>(&self, f: F)
     where
         F: FnMut(&K, &V) -> bool,
     {
-        self.raw.retain(f, self.raw.verify(guard))
+        self.raw.retain(f)
     }
 
     /// An iterator visiting all key-value pairs in arbitrary order.
@@ -997,12 +964,9 @@ where
     ///     println!("key: {key} val: {val}");
     /// }
     #[inline]
-    pub fn iter<'g, G>(&self, guard: &'g G) -> Iter<'g, K, V, G>
-    where
-        G: Guard,
-    {
+    pub fn iter<'g>(&self) -> Iter<'g, K, V> {
         Iter {
-            raw: self.raw.iter(self.raw.verify(guard)),
+            raw: self.raw.iter(),
         }
     }
 
@@ -1029,13 +993,9 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn keys<'g, G>(&self, guard: &'g G) -> Keys<'g, K, V, G>
-    where
-        G: Guard,
+    pub fn keys<'g>(&self) -> Keys<'g, K, V>
     {
-        Keys {
-            iter: self.iter(guard),
-        }
+        Keys { iter: self.iter() }
     }
 
     /// An iterator visiting all values in arbitrary order.
@@ -1061,13 +1021,9 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn values<'g, G>(&self, guard: &'g G) -> Values<'g, K, V, G>
-    where
-        G: Guard,
+    pub fn values<'g>(&self) -> Values<'g, K, V>
     {
-        Values {
-            iter: self.iter(guard),
-        }
+        Values { iter: self.iter() }
     }
 }
 
@@ -1132,10 +1088,8 @@ where
             return false;
         }
 
-        let (guard1, guard2) = (&self.guard(), &other.guard());
-
-        let mut iter = self.iter(guard1);
-        iter.all(|(key, value)| other.get(key, guard2).is_some_and(|v| *value == *v))
+        let mut iter = self.iter();
+        iter.all(|(key, value)| other.get(key).is_some_and(|v| *value == *v))
     }
 }
 
@@ -1154,8 +1108,7 @@ where
     S: BuildHasher,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let guard = self.guard();
-        f.debug_map().entries(self.iter(&guard)).finish()
+        f.debug_map().entries(self.iter()).finish()
     }
 }
 
@@ -1177,11 +1130,10 @@ where
             (iter.size_hint().0 + 1) / 2
         };
 
-        let guard = self.guard();
-        self.reserve(reserve, &guard);
+        self.reserve(reserve);
 
         for (key, value) in iter {
-            self.insert(key, value, &guard);
+            self.insert(key, value);
         }
     }
 }
@@ -1251,9 +1203,8 @@ where
             .build();
 
         {
-            let (guard1, guard2) = (&self.guard(), &other.guard());
-            for (key, value) in self.iter(guard1) {
-                other.insert(key.clone(), value.clone(), guard2);
+            for (key, value) in self.iter() {
+                other.insert(key.clone(), value.clone());
             }
         }
 
@@ -1265,16 +1216,14 @@ where
 ///
 /// This type is created with [`HashMap::pin`] and can be used to easily access a [`HashMap`]
 /// without explicitly managing a guard. See the [crate-level documentation](crate#usage) for details.
-pub struct HashMapRef<'map, K, V, S, G> {
-    guard: MapGuard<G>,
+pub struct HashMapRef<'map, K, V, S> {
     map: &'map HashMap<K, V, S>,
 }
 
-impl<'map, K, V, S, G> HashMapRef<'map, K, V, S, G>
+impl<'map, K, V, S> HashMapRef<'map, K, V, S>
 where
     K: Hash + Eq,
     S: BuildHasher,
-    G: Guard,
 {
     /// Returns a reference to the inner [`HashMap`].
     #[inline]
@@ -1317,7 +1266,7 @@ where
     where
         Q: Equivalent<K> + Hash + ?Sized,
     {
-        match self.map.raw.get(key, &self.guard) {
+        match self.map.raw.get(key) {
             Some((_, v)) => Some(v),
             None => None,
         }
@@ -1331,7 +1280,7 @@ where
     where
         Q: Equivalent<K> + Hash + ?Sized,
     {
-        self.map.raw.get(key, &self.guard)
+        self.map.raw.get(key)
     }
 
     /// Inserts a key-value pair into the map.
@@ -1339,7 +1288,7 @@ where
     /// See [`HashMap::insert`] for details.
     #[inline]
     pub fn insert(&self, key: K, value: V) -> Option<&V> {
-        match self.map.raw.insert(key, value, true, &self.guard) {
+        match self.map.raw.insert(key, value, true) {
             InsertResult::Inserted(_) => None,
             InsertResult::Replaced(value) => Some(value),
             InsertResult::Error { .. } => unreachable!(),
@@ -1352,7 +1301,7 @@ where
     /// See [`HashMap::try_insert`] for details.
     #[inline]
     pub fn try_insert(&self, key: K, value: V) -> Result<&V, OccupiedError<'_, V>> {
-        match self.map.raw.insert(key, value, false, &self.guard) {
+        match self.map.raw.insert(key, value, false) {
             InsertResult::Inserted(value) => Ok(value),
             InsertResult::Error {
                 current,
@@ -1374,7 +1323,7 @@ where
     where
         F: FnOnce() -> V,
     {
-        self.map.raw.try_insert_with(key, f, &self.guard)
+        self.map.raw.try_insert_with(key, f)
     }
 
     /// Returns a reference to the value corresponding to the key, or inserts a default value.
@@ -1399,7 +1348,7 @@ where
     where
         F: FnOnce() -> V,
     {
-        self.map.raw.get_or_insert_with(key, f, &self.guard)
+        self.map.raw.get_or_insert_with(key, f)
     }
 
     /// Updates an existing entry atomically.
@@ -1410,7 +1359,7 @@ where
     where
         F: Fn(&V) -> V,
     {
-        self.map.raw.update(key, update, &self.guard)
+        self.map.raw.update(key, update)
     }
 
     /// Updates an existing entry or inserts a default value.
@@ -1433,9 +1382,7 @@ where
         F: FnOnce() -> V,
         U: Fn(&V) -> V,
     {
-        self.map
-            .raw
-            .update_or_insert_with(key, update, f, &self.guard)
+        self.map.raw.update_or_insert_with(key, update, f)
     }
 
     // Updates an entry with a compare-and-swap (CAS) function.
@@ -1446,7 +1393,7 @@ where
     where
         F: FnMut(Option<(&'g K, &'g V)>) -> Operation<V, T>,
     {
-        self.map.raw.compute(key, compute, &self.guard)
+        self.map.raw.compute(key, compute)
     }
 
     /// Removes a key from the map, returning the value at the key if the key
@@ -1458,7 +1405,7 @@ where
     where
         Q: Equivalent<K> + Hash + ?Sized,
     {
-        match self.map.raw.remove(key, &self.guard) {
+        match self.map.raw.remove(key) {
             Some((_, value)) => Some(value),
             None => None,
         }
@@ -1473,7 +1420,7 @@ where
     where
         Q: Equivalent<K> + Hash + ?Sized,
     {
-        self.map.raw.remove(key, &self.guard)
+        self.map.raw.remove(key)
     }
 
     /// Conditionally removes a key from the map based on the provided closure.
@@ -1485,7 +1432,7 @@ where
         Q: Equivalent<K> + Hash + ?Sized,
         F: FnMut(&K, &V) -> bool,
     {
-        self.map.raw.remove_if(key, should_remove, &self.guard)
+        self.map.raw.remove_if(key, should_remove)
     }
 
     /// Clears the map, removing all key-value pairs.
@@ -1493,7 +1440,7 @@ where
     /// See [`HashMap::clear`] for details.
     #[inline]
     pub fn clear(&self) {
-        self.map.raw.clear(&self.guard)
+        self.map.raw.clear()
     }
 
     /// Retains only the elements specified by the predicate.
@@ -1504,7 +1451,7 @@ where
     where
         F: FnMut(&K, &V) -> bool,
     {
-        self.map.raw.retain(f, &self.guard)
+        self.map.raw.retain(f)
     }
 
     /// Tries to reserve capacity for `additional` more elements to be inserted
@@ -1513,7 +1460,7 @@ where
     /// See [`HashMap::reserve`] for details.
     #[inline]
     pub fn reserve(&self, additional: usize) {
-        self.map.raw.reserve(additional, &self.guard)
+        self.map.raw.reserve(additional)
     }
 
     /// An iterator visiting all key-value pairs in arbitrary order.
@@ -1521,9 +1468,9 @@ where
     ///
     /// See [`HashMap::iter`] for details.
     #[inline]
-    pub fn iter(&self) -> Iter<'_, K, V, G> {
+    pub fn iter(&self) -> Iter<'_, K, V> {
         Iter {
-            raw: self.map.raw.iter(&self.guard),
+            raw: self.map.raw.iter(),
         }
     }
 
@@ -1532,7 +1479,7 @@ where
     ///
     /// See [`HashMap::keys`] for details.
     #[inline]
-    pub fn keys(&self) -> Keys<'_, K, V, G> {
+    pub fn keys(&self) -> Keys<'_, K, V> {
         Keys { iter: self.iter() }
     }
 
@@ -1541,31 +1488,29 @@ where
     ///
     /// See [`HashMap::values`] for details.
     #[inline]
-    pub fn values(&self) -> Values<'_, K, V, G> {
+    pub fn values(&self) -> Values<'_, K, V> {
         Values { iter: self.iter() }
     }
 }
 
-impl<K, V, S, G> fmt::Debug for HashMapRef<'_, K, V, S, G>
+impl<K, V, S> fmt::Debug for HashMapRef<'_, K, V, S>
 where
     K: Hash + Eq + fmt::Debug,
     V: fmt::Debug,
     S: BuildHasher,
-    G: Guard,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_map().entries(self.iter()).finish()
     }
 }
 
-impl<'a, K, V, S, G> IntoIterator for &'a HashMapRef<'_, K, V, S, G>
+impl<'a, K, V, S> IntoIterator for &'a HashMapRef<'_, K, V, S>
 where
     K: Hash + Eq,
     S: BuildHasher,
-    G: Guard,
 {
     type Item = (&'a K, &'a V);
-    type IntoIter = Iter<'a, K, V, G>;
+    type IntoIter = Iter<'a, K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
@@ -1575,14 +1520,11 @@ where
 /// An iterator over a map's entries.
 ///
 /// This struct is created by the [`iter`](HashMap::iter) method on [`HashMap`]. See its documentation for details.
-pub struct Iter<'g, K, V, G> {
-    raw: raw::Iter<'g, K, V, MapGuard<G>>,
+pub struct Iter<'g, K, V> {
+    raw: raw::Iter<'g, K, V>,
 }
 
-impl<'g, K: 'g, V: 'g, G> Iterator for Iter<'g, K, V, G>
-where
-    G: Guard,
-{
+impl<'g, K: 'g, V: 'g> Iterator for Iter<'g, K, V> {
     type Item = (&'g K, &'g V);
 
     #[inline]
@@ -1591,11 +1533,10 @@ where
     }
 }
 
-impl<K, V, G> fmt::Debug for Iter<'_, K, V, G>
+impl<K, V> fmt::Debug for Iter<'_, K, V>
 where
     K: fmt::Debug,
     V: fmt::Debug,
-    G: Guard,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list()
@@ -1609,14 +1550,11 @@ where
 /// An iterator over a map's keys.
 ///
 /// This struct is created by the [`keys`](HashMap::keys) method on [`HashMap`]. See its documentation for details.
-pub struct Keys<'g, K, V, G> {
-    iter: Iter<'g, K, V, G>,
+pub struct Keys<'g, K, V> {
+    iter: Iter<'g, K, V>,
 }
 
-impl<'g, K: 'g, V: 'g, G> Iterator for Keys<'g, K, V, G>
-where
-    G: Guard,
-{
+impl<'g, K: 'g, V: 'g> Iterator for Keys<'g, K, V> {
     type Item = &'g K;
 
     #[inline]
@@ -1626,11 +1564,10 @@ where
     }
 }
 
-impl<K, V, G> fmt::Debug for Keys<'_, K, V, G>
+impl<K, V> fmt::Debug for Keys<'_, K, V>
 where
     K: fmt::Debug,
     V: fmt::Debug,
-    G: Guard,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("Keys").field(&self.iter).finish()
@@ -1640,14 +1577,11 @@ where
 /// An iterator over a map's values.
 ///
 /// This struct is created by the [`values`](HashMap::values) method on [`HashMap`]. See its documentation for details.
-pub struct Values<'g, K, V, G> {
-    iter: Iter<'g, K, V, G>,
+pub struct Values<'g, K, V> {
+    iter: Iter<'g, K, V>,
 }
 
-impl<'g, K: 'g, V: 'g, G> Iterator for Values<'g, K, V, G>
-where
-    G: Guard,
-{
+impl<'g, K: 'g, V: 'g> Iterator for Values<'g, K, V> {
     type Item = &'g V;
 
     #[inline]
@@ -1657,11 +1591,10 @@ where
     }
 }
 
-impl<K, V, G> fmt::Debug for Values<'_, K, V, G>
+impl<K, V> fmt::Debug for Values<'_, K, V>
 where
     K: fmt::Debug,
     V: fmt::Debug,
-    G: Guard,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("Values").field(&self.iter).finish()

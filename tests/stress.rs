@@ -28,9 +28,8 @@ fn contains_key_stress() {
             let mut content = vec![0; ENTRIES];
 
             {
-                let guard = map.guard();
                 for k in 0..ENTRIES {
-                    map.insert(k, k, &guard);
+                    map.insert(k, k);
                     content[k] = k;
                 }
             }
@@ -41,10 +40,9 @@ fn contains_key_stress() {
                 for _ in 0..threads {
                     s.spawn(|| {
                         barrier.wait();
-                        let guard = map.guard();
                         for i in 0..ENTRIES {
                             let key = content[i % content.len()];
-                            assert!(map.contains_key(&key, &guard));
+                            assert!(map.contains_key(&key));
                         }
                     });
                 }
@@ -82,8 +80,8 @@ fn insert_stress() {
                         barrier.wait();
                         for _ in 0..ENTRIES {
                             let key = random();
-                            map.insert(key, key, &map.guard());
-                            assert!(map.contains_key(&key, &map.guard()));
+                            map.insert(key, key);
+                            assert!(map.contains_key(&key));
                         }
                     });
                 }
@@ -136,11 +134,11 @@ fn insert_overwrite_stress() {
                         barrier.wait();
                         for i in entries {
                             let value = counters[i].fetch_add(1, Ordering::Relaxed);
-                            if let Some(&prev) = map.insert(i, value, &map.guard()) {
+                            if let Some(&prev) = map.insert(i, value) {
                                 // Keep track of values we overwrite.
                                 seen[i].push(prev);
                             }
-                            assert!(map.contains_key(&i, &map.guard()));
+                            assert!(map.contains_key(&i));
                         }
                         seen
                     });
@@ -200,9 +198,8 @@ fn update_stress() {
             let map = map();
 
             {
-                let guard = map.guard();
                 for i in 0..ENTRIES {
-                    map.insert(i, 0, &guard);
+                    map.insert(i, 0);
                 }
             }
 
@@ -215,17 +212,15 @@ fn update_stress() {
                         let entries = entries();
                         barrier.wait();
                         for i in entries {
-                            let guard = map.guard();
-                            let new = *map.update(i, |v| v + 1, &guard).unwrap();
+                            let new = *map.update(i, |v| v + 1).unwrap();
                             assert!((0..=(threads * OPERATIONS)).contains(&new));
                         }
                     });
                 }
             });
 
-            let guard = map.guard();
             for i in 0..ENTRIES {
-                assert_eq!(*map.get(&i, &guard).unwrap(), threads * OPERATIONS);
+                assert_eq!(*map.get(&i).unwrap(), threads * OPERATIONS);
             }
         }
     });
@@ -247,9 +242,8 @@ fn update_insert_stress() {
         let map = map();
 
         {
-            let guard = map.guard();
             for i in 0..ENTRIES {
-                map.insert(i, 0, &guard);
+                map.insert(i, 0);
             }
         }
 
@@ -262,9 +256,8 @@ fn update_insert_stress() {
                 for _ in 0..(threads - 1) {
                     s.spawn(|| {
                         barrier.wait();
-                        let guard = map.guard();
                         for i in 0..ENTRIES {
-                            let new = *map.update(i, |v| v + 1, &guard).unwrap();
+                            let new = *map.update(i, |v| v + 1).unwrap();
                             assert!((0..=(threads * (t + 1))).contains(&new));
                         }
                     });
@@ -272,20 +265,18 @@ fn update_insert_stress() {
 
                 s.spawn(|| {
                     barrier.wait();
-                    let guard = map.guard();
                     for i in ENTRIES..(ENTRIES * 2) {
-                        map.insert(i, usize::MAX, &guard);
+                        map.insert(i, usize::MAX);
                     }
                 });
             });
 
-            let guard = map.guard();
             for i in 0..ENTRIES {
-                assert_eq!(*map.get(&i, &guard).unwrap(), (threads - 1) * (t + 1));
+                assert_eq!(*map.get(&i).unwrap(), (threads - 1) * (t + 1));
             }
 
             for i in ENTRIES..(ENTRIES * 2) {
-                assert_eq!(*map.get(&i, &guard).unwrap(), usize::MAX);
+                assert_eq!(*map.get(&i).unwrap(), usize::MAX);
             }
         }
     });
@@ -327,17 +318,15 @@ fn update_or_insert_stress() {
 
                     s.spawn(|| {
                         barrier.wait();
-                        let guard = map.guard();
                         for i in &entries[range] {
-                            map.update_or_insert(*i, |v| v + 1, 1, &guard);
+                            map.update_or_insert(*i, |v| v + 1, 1);
                         }
                     });
                 }
             });
 
-            let guard = map.guard();
             for i in 0..ENTRIES {
-                assert_eq!(*map.get(&i, &guard).unwrap(), threads * OPERATIONS);
+                assert_eq!(*map.get(&i).unwrap(), threads * OPERATIONS);
             }
 
             assert_eq!(map.len(), ENTRIES);
@@ -382,9 +371,8 @@ fn remove_update_or_insert_stress() {
                     s.spawn(|| {
                         let entries = entries();
                         barrier.wait();
-                        let guard = map.guard();
                         for i in entries {
-                            map.update_or_insert(i, |v| v + 1, 1, &guard);
+                            map.update_or_insert(i, |v| v + 1, 1);
                         }
                     });
                 }
@@ -393,11 +381,10 @@ fn remove_update_or_insert_stress() {
                     s.spawn(|| {
                         let entries = entries();
                         barrier.wait();
-                        let guard = map.guard();
 
                         for i in entries {
-                            if let Some(&value) = map.remove(&i, &guard) {
-                                map.update_or_insert(i, |v| v + value, value, &guard);
+                            if let Some(&value) = map.remove(&i) {
+                                map.update_or_insert(i, |v| v + value, value);
                             }
                         }
                     });
@@ -405,22 +392,20 @@ fn remove_update_or_insert_stress() {
 
                 s.spawn(|| {
                     barrier.wait();
-                    let guard = map.guard();
                     for i in ENTRIES..(ENTRIES * OPERATIONS) {
-                        map.insert(i, usize::MAX, &guard);
+                        map.insert(i, usize::MAX);
                     }
                 });
             });
 
-            let guard = map.guard();
             assert_eq!(map.len(), ENTRIES * OPERATIONS);
 
             for i in 0..ENTRIES {
-                assert_eq!(*map.get(&i, &guard).unwrap(), group * OPERATIONS);
+                assert_eq!(*map.get(&i).unwrap(), group * OPERATIONS);
             }
 
             for i in ENTRIES..(ENTRIES * OPERATIONS) {
-                assert_eq!(*map.get(&i, &guard).unwrap(), usize::MAX);
+                assert_eq!(*map.get(&i).unwrap(), usize::MAX);
             }
         }
     });
@@ -463,9 +448,8 @@ fn conditional_remove_update_or_insert_stress() {
                     s.spawn(|| {
                         let entries = entries();
                         barrier.wait();
-                        let guard = map.guard();
                         for i in entries {
-                            map.update_or_insert(i, |v| v + 1, 1, &guard);
+                            map.update_or_insert(i, |v| v + 1, 1);
                         }
                     });
                 }
@@ -474,7 +458,6 @@ fn conditional_remove_update_or_insert_stress() {
                     s.spawn(|| {
                         let entries = entries();
                         barrier.wait();
-                        let guard = map.guard();
 
                         for i in entries {
                             let compute = |entry| match entry {
@@ -482,8 +465,8 @@ fn conditional_remove_update_or_insert_stress() {
                                 _ => Operation::Abort(()),
                             };
 
-                            if let Compute::Removed(_, &value) = map.compute(i, compute, &guard) {
-                                map.update_or_insert(i, |v| v + value, value, &guard);
+                            if let Compute::Removed(_, &value) = map.compute(i, compute) {
+                                map.update_or_insert(i, |v| v + value, value);
                             }
                         }
                     });
@@ -491,22 +474,20 @@ fn conditional_remove_update_or_insert_stress() {
 
                 s.spawn(|| {
                     barrier.wait();
-                    let guard = map.guard();
                     for i in ENTRIES..(ENTRIES * OPERATIONS) {
-                        map.insert(i, usize::MAX, &guard);
+                        map.insert(i, usize::MAX);
                     }
                 });
             });
 
-            let guard = map.guard();
             assert_eq!(map.len(), ENTRIES * OPERATIONS);
 
             for i in 0..ENTRIES {
-                assert_eq!(*map.get(&i, &guard).unwrap(), group * OPERATIONS);
+                assert_eq!(*map.get(&i).unwrap(), group * OPERATIONS);
             }
 
             for i in ENTRIES..(ENTRIES * OPERATIONS) {
-                assert_eq!(*map.get(&i, &guard).unwrap(), usize::MAX);
+                assert_eq!(*map.get(&i).unwrap(), usize::MAX);
             }
         }
     });
@@ -546,9 +527,8 @@ fn remove_if_update_or_insert_stress() {
                     s.spawn(|| {
                         let entries = entries();
                         barrier.wait();
-                        let guard = map.guard();
                         for i in entries {
-                            map.update_or_insert(i, |v| v + 1, 1, &guard);
+                            map.update_or_insert(i, |v| v + 1, 1);
                         }
                     });
                 }
@@ -557,13 +537,10 @@ fn remove_if_update_or_insert_stress() {
                     s.spawn(|| {
                         let entries = entries();
                         barrier.wait();
-                        let guard = map.guard();
 
                         for i in entries {
-                            if let Ok(Some((_k, &value))) =
-                                map.remove_if(&i, |_k, v| v % 2 == 0, &guard)
-                            {
-                                map.update_or_insert(i, |v| v + value, value, &guard);
+                            if let Ok(Some((_k, &value))) = map.remove_if(&i, |_k, v| v % 2 == 0) {
+                                map.update_or_insert(i, |v| v + value, value);
                             }
                         }
                     });
@@ -571,22 +548,20 @@ fn remove_if_update_or_insert_stress() {
 
                 s.spawn(|| {
                     barrier.wait();
-                    let guard = map.guard();
                     for i in ENTRIES..(ENTRIES * OPERATIONS) {
-                        map.insert(i, usize::MAX, &guard);
+                        map.insert(i, usize::MAX);
                     }
                 });
             });
 
-            let guard = map.guard();
             assert_eq!(map.len(), ENTRIES * OPERATIONS);
 
             for i in 0..ENTRIES {
-                assert_eq!(*map.get(&i, &guard).unwrap(), group * OPERATIONS);
+                assert_eq!(*map.get(&i).unwrap(), group * OPERATIONS);
             }
 
             for i in ENTRIES..(ENTRIES * OPERATIONS) {
-                assert_eq!(*map.get(&i, &guard).unwrap(), usize::MAX);
+                assert_eq!(*map.get(&i).unwrap(), usize::MAX);
             }
         }
     });
@@ -626,9 +601,8 @@ fn insert_remove_stress() {
                         let entries = entries();
                         barrier.wait();
 
-                        let guard = map.guard();
                         for i in entries {
-                            map.insert(i, i, &guard);
+                            map.insert(i, i);
                         }
                     });
                 }
@@ -638,21 +612,19 @@ fn insert_remove_stress() {
                         let entries = entries();
                         barrier.wait();
 
-                        let guard = map.guard();
                         for i in entries {
-                            if map.remove(&i, &guard).is_some() {
-                                map.insert(i, i, &guard);
+                            if map.remove(&i).is_some() {
+                                map.insert(i, i);
                             }
                         }
                     });
                 }
             });
 
-            let guard = map.guard();
             assert_eq!(map.len(), ENTRIES);
 
             for i in 0..ENTRIES {
-                assert_eq!(map.get(&i, &guard), Some(&i));
+                assert_eq!(map.get(&i), Some(&i));
             }
         }
     });
@@ -676,9 +648,8 @@ fn remove_mixed_stress() {
             let map = map();
 
             {
-                let guard = map.guard();
                 for i in 0..ENTRIES {
-                    map.insert(i, 0, &guard);
+                    map.insert(i, 0);
                 }
             }
 
@@ -693,12 +664,11 @@ fn remove_mixed_stress() {
                         entries.shuffle(&mut rng);
 
                         barrier.wait();
-                        let guard = map.guard();
 
                         loop {
                             let mut empty = true;
                             for &i in entries.iter() {
-                                if map.update(i, |v| v + 1, &guard).is_some() {
+                                if map.update(i, |v| v + 1).is_some() {
                                     empty = false;
                                 }
                             }
@@ -711,32 +681,29 @@ fn remove_mixed_stress() {
 
                 s.spawn(|| {
                     barrier.wait();
-                    let guard = map.guard();
                     for i in 0..ENTRIES {
-                        map.remove(&i, &guard);
+                        map.remove(&i);
                     }
 
                     for i in 0..ENTRIES {
-                        assert_eq!(map.get(&i, &guard), None);
+                        assert_eq!(map.get(&i), None);
                     }
                 });
 
                 s.spawn(|| {
                     barrier.wait();
-                    let guard = map.guard();
                     for i in ENTRIES..(ENTRIES * 2) {
-                        map.insert(i, usize::MAX, &guard);
+                        map.insert(i, usize::MAX);
                     }
                 });
             });
 
-            let guard = map.guard();
             for i in 0..ENTRIES {
-                assert_eq!(map.get(&i, &guard), None);
+                assert_eq!(map.get(&i), None);
             }
 
             for i in ENTRIES..(ENTRIES * 2) {
-                assert_eq!(*map.get(&i, &guard).unwrap(), usize::MAX);
+                assert_eq!(*map.get(&i).unwrap(), usize::MAX);
             }
 
             assert_eq!(map.len(), ENTRIES);
@@ -1042,8 +1009,8 @@ fn retain_stress() {
                         barrier.wait();
                         for _ in 0..ENTRIES {
                             let key = random();
-                            map.insert(key, key, &map.guard());
-                            assert!(map.contains_key(&key, &map.guard()));
+                            map.insert(key, key);
+                            assert!(map.contains_key(&key));
                         }
                     });
                 }
@@ -1122,10 +1089,9 @@ fn everything() {
     {
         let mut sum = 0;
         let iters = 4;
-        let guard = map.guard();
         for _ in 0..iters {
             for key in keys {
-                if map.get(key, &guard).is_some() {
+                if map.get(key).is_some() {
                     sum += 1;
                 }
             }
@@ -1138,9 +1104,8 @@ fn everything() {
         K: Sync + Send + Copy + Hash + Ord + std::fmt::Display,
     {
         let mut sum = 0;
-        let guard = map.guard();
         for key in keys {
-            if map.remove(key, &guard).is_some() {
+            if map.remove(key).is_some() {
                 sum += 1;
             }
         }
@@ -1152,9 +1117,8 @@ fn everything() {
         K: Sync + Send + Copy + Hash + Ord,
     {
         let mut sum = 0;
-        let guard = map.guard();
         for i in 0..keys.len() {
-            if map.insert(keys[i], 0, &guard).is_none() {
+            if map.insert(keys[i], 0).is_none() {
                 sum += 1;
             }
         }
@@ -1166,9 +1130,8 @@ fn everything() {
         K: Sync + Send + Copy + Hash + Ord,
     {
         let mut sum = 0;
-        let guard = map.guard();
         for i in 0..keys.len() {
-            if map.contains_key(&keys[i], &guard) {
+            if map.contains_key(&keys[i]) {
                 sum += 1;
             }
         }
@@ -1180,10 +1143,9 @@ fn everything() {
         K: Sync + Send + Copy + Hash + Ord,
     {
         let mut sum = 0;
-        let guard = map.guard();
         let mut i = keys.len() as isize - 2;
         while i >= 0 {
-            if map.remove(&keys[i as usize], &guard).is_some() {
+            if map.remove(&keys[i as usize]).is_some() {
                 sum += 1;
             }
             i -= 2;
@@ -1197,12 +1159,11 @@ fn everything() {
         V: Sync + Send,
     {
         let mut sum = 0;
-        let guard = map.guard();
         for i in 0..expect {
-            if map.get(&keys1[i], &guard).is_some() {
+            if map.get(&keys1[i]).is_some() {
                 sum += 1;
             }
-            if map.get(&keys2[i & mask], &guard).is_some() {
+            if map.get(&keys2[i & mask]).is_some() {
                 sum += 1;
             }
         }
@@ -1214,12 +1175,11 @@ fn everything() {
         K: Sync + Send + Copy + Hash + Ord,
     {
         let mut sum = 0;
-        let guard = map.guard();
         for i in 0..k1.len() {
-            if map.contains_key(&k1[i], &guard) {
+            if map.contains_key(&k1[i]) {
                 sum += 1;
             }
-            if map.contains_key(&k2[i], &guard) {
+            if map.contains_key(&k2[i]) {
                 sum += 1;
             }
         }
@@ -1231,8 +1191,7 @@ fn everything() {
         K: Sync + Send + Copy + Hash + Eq,
     {
         let mut sum = 0;
-        let guard = map.guard();
-        for _ in map.keys(&guard) {
+        for _ in map.keys() {
             sum += 1;
         }
         assert_eq!(sum, expect);
@@ -1243,8 +1202,7 @@ fn everything() {
         K: Sync + Send + Copy + Hash + Eq,
     {
         let mut sum = 0;
-        let guard = map.guard();
-        for _ in map.values(&guard) {
+        for _ in map.values() {
             sum += 1;
         }
         assert_eq!(sum, expect);
@@ -1255,8 +1213,7 @@ fn everything() {
         K: Sync + Send + Copy + Hash + Eq,
     {
         let mut sum = 0;
-        let guard = map.guard();
-        for _ in map.iter(&guard) {
+        for _ in map.iter() {
             sum += 1;
         }
         assert_eq!(sum, expect);

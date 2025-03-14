@@ -17,15 +17,14 @@ fn new() {
 fn clear() {
     with_set::<usize>(|set| {
         let set = set();
-        let guard = set.guard();
         {
-            set.insert(0, &guard);
-            set.insert(1, &guard);
-            set.insert(2, &guard);
-            set.insert(3, &guard);
-            set.insert(4, &guard);
+            set.insert(0);
+            set.insert(1);
+            set.insert(2);
+            set.insert(3);
+            set.insert(4);
         }
-        set.clear(&guard);
+        set.clear();
         assert!(set.is_empty());
     });
 }
@@ -34,9 +33,8 @@ fn clear() {
 fn insert() {
     with_set::<usize>(|set| {
         let set = set();
-        let guard = set.guard();
-        assert_eq!(set.insert(42, &guard), true);
-        assert_eq!(set.insert(42, &guard), false);
+        assert_eq!(set.insert(42), true);
+        assert_eq!(set.insert(42), false);
         assert_eq!(set.len(), 1);
     });
 }
@@ -45,8 +43,7 @@ fn insert() {
 fn get_empty() {
     with_set::<usize>(|set| {
         let set = set();
-        let guard = set.guard();
-        let e = set.get(&42, &guard);
+        let e = set.get(&42);
         assert!(e.is_none());
     });
 }
@@ -55,8 +52,7 @@ fn get_empty() {
 fn remove_empty() {
     with_set::<usize>(|set| {
         let set = set();
-        let guard = set.guard();
-        assert_eq!(set.remove(&42, &guard), false);
+        assert_eq!(set.remove(&42), false);
     });
 }
 
@@ -64,10 +60,9 @@ fn remove_empty() {
 fn insert_and_remove() {
     with_set::<usize>(|set| {
         let set = set();
-        let guard = set.guard();
-        assert!(set.insert(42, &guard));
-        assert!(set.remove(&42, &guard));
-        assert!(set.get(&42, &guard).is_none());
+        assert!(set.insert(42));
+        assert!(set.remove(&42));
+        assert!(set.get(&42).is_none());
     });
 }
 
@@ -75,11 +70,10 @@ fn insert_and_remove() {
 fn insert_and_get() {
     with_set::<usize>(|set| {
         let set = set();
-        set.insert(42, &set.guard());
+        set.insert(42);
 
         {
-            let guard = set.guard();
-            let e = set.get(&42, &guard).unwrap();
+            let e = set.get(&42).unwrap();
             assert_eq!(e, &42);
         }
     });
@@ -89,12 +83,10 @@ fn insert_and_get() {
 fn reinsert() {
     with_set::<usize>(|set| {
         let set = set();
-        let guard = set.guard();
-        assert!(set.insert(42, &guard));
-        assert!(!set.insert(42, &guard));
+        assert!(set.insert(42));
+        assert!(!set.insert(42));
         {
-            let guard = set.guard();
-            let e = set.get(&42, &guard).unwrap();
+            let e = set.get(&42).unwrap();
             assert_eq!(e, &42);
         }
     });
@@ -109,22 +101,21 @@ fn concurrent_insert() {
         let set1 = set.clone();
         let t1 = std::thread::spawn(move || {
             for i in 0..64 {
-                set1.insert(i, &set1.guard());
+                set1.insert(i);
             }
         });
         let set2 = set.clone();
         let t2 = std::thread::spawn(move || {
             for i in 0..64 {
-                set2.insert(i, &set2.guard());
+                set2.insert(i);
             }
         });
 
         t1.join().unwrap();
         t2.join().unwrap();
 
-        let guard = set.guard();
         for i in 0..64 {
-            let v = set.get(&i, &guard).unwrap();
+            let v = set.get(&i).unwrap();
             assert!(v == &i);
         }
     });
@@ -137,24 +128,21 @@ fn concurrent_remove() {
         let set = Arc::new(set);
 
         {
-            let guard = set.guard();
             for i in 0..64 {
-                set.insert(i, &guard);
+                set.insert(i);
             }
         }
 
         let set1 = set.clone();
         let t1 = std::thread::spawn(move || {
-            let guard = set1.guard();
             for i in 0..64 {
-                set1.remove(&i, &guard);
+                set1.remove(&i);
             }
         });
         let set2 = set.clone();
         let t2 = std::thread::spawn(move || {
-            let guard = set2.guard();
             for i in 0..64 {
-                set2.remove(&i, &guard);
+                set2.remove(&i);
             }
         });
 
@@ -162,9 +150,8 @@ fn concurrent_remove() {
         t2.join().unwrap();
 
         // after joining the threads, the set should be empty
-        let guard = set.guard();
         for i in 0..64 {
-            assert!(set.get(&i, &guard).is_none());
+            assert!(set.get(&i).is_none());
         }
     });
 }
@@ -181,28 +168,25 @@ fn concurrent_resize_and_get() {
         let set = Arc::new(set);
 
         {
-            let guard = set.guard();
             for i in 0..1024 {
-                set.insert(i, &guard);
+                set.insert(i);
             }
         }
 
         let set1 = set.clone();
         // t1 is using reserve to trigger a bunch of resizes
         let t1 = std::thread::spawn(move || {
-            let guard = set1.guard();
             // there should be 2 ** 10 capacity already, so trigger additional resizes
             for power in 11..16 {
-                set1.reserve(1 << power, &guard);
+                set1.reserve(1 << power);
             }
         });
         let set2 = set.clone();
         // t2 is retrieving existing keys a lot, attempting to encounter a BinEntry::Moved
         let t2 = std::thread::spawn(move || {
-            let guard = set2.guard();
             for _ in 0..32 {
                 for i in 0..1024 {
-                    let v = set2.get(&i, &guard).unwrap();
+                    let v = set2.get(&i).unwrap();
                     assert_eq!(v, &i);
                 }
             }
@@ -213,10 +197,9 @@ fn concurrent_resize_and_get() {
 
         // make sure all the entries still exist after all the resizes
         {
-            let guard = set.guard();
 
             for i in 0..1024 {
-                let v = set.get(&i, &guard).unwrap();
+                let v = set.get(&i).unwrap();
                 assert_eq!(v, &i);
             }
         }
@@ -229,7 +212,7 @@ fn current_kv_dropped() {
 
     with_set::<Arc<usize>>(|set| {
         let set = set();
-        set.insert(dropped1.clone(), &set.guard());
+        set.insert(dropped1.clone());
         assert_eq!(Arc::strong_count(&dropped1), 2);
 
         drop(set);
@@ -258,15 +241,12 @@ fn different_size_sets_not_equal() {
         with_set::<usize>(|set2| {
             let set2 = set2();
             {
-                let guard1 = set1.guard();
-                let guard2 = set2.guard();
+                set1.insert(1);
+                set1.insert(2);
+                set1.insert(3);
 
-                set1.insert(1, &guard1);
-                set1.insert(2, &guard1);
-                set1.insert(3, &guard1);
-
-                set2.insert(1, &guard2);
-                set2.insert(2, &guard2);
+                set2.insert(1);
+                set2.insert(2);
             }
 
             assert_ne!(set1, set2);
@@ -325,14 +305,14 @@ fn clone_set_empty() {
 fn clone_set_filled() {
     with_set::<&'static str>(|set| {
         let set = set();
-        set.insert("FooKey", &set.guard());
-        set.insert("BarKey", &set.guard());
+        set.insert("FooKey");
+        set.insert("BarKey");
         let cloned_set = set.clone();
         assert_eq!(set.len(), cloned_set.len());
         assert_eq!(&set, &cloned_set);
 
         // test that we are not setting the same tables
-        set.insert("NewItem", &set.guard());
+        set.insert("NewItem");
         assert_ne!(&set, &cloned_set);
     });
 }
@@ -341,10 +321,9 @@ fn clone_set_filled() {
 fn default() {
     with_set::<usize>(|set| {
         let set = set();
-        let guard = set.guard();
-        set.insert(42, &guard);
+        set.insert(42);
 
-        assert_eq!(set.get(&42, &guard), Some(&42));
+        assert_eq!(set.get(&42), Some(&42));
     });
 }
 
@@ -352,9 +331,8 @@ fn default() {
 fn debug() {
     with_set::<usize>(|set| {
         let set = set();
-        let guard = set.guard();
-        set.insert(42, &guard);
-        set.insert(16, &guard);
+        set.insert(42);
+        set.insert(16);
 
         let formatted = format!("{:?}", set);
 
@@ -370,14 +348,13 @@ fn extend() {
 
     with_set::<usize>(|set| {
         let set = set();
-        let guard = set.guard();
 
         let mut entries: Vec<usize> = vec![42, 16, 38];
         entries.sort_unstable();
 
         (&set).extend(entries.clone().into_iter());
 
-        let mut collected: Vec<usize> = set.iter(&guard).map(|key| *key).collect();
+        let mut collected: Vec<usize> = set.iter().map(|key| *key).collect();
         collected.sort_unstable();
 
         assert_eq!(entries, collected);
@@ -397,8 +374,7 @@ fn extend_ref() {
 
         (&set).extend(entries.clone().into_iter());
 
-        let guard = set.guard();
-        let mut collected: Vec<&usize> = set.iter(&guard).collect();
+        let mut collected: Vec<&usize> = set.iter().collect();
         collected.sort();
 
         assert_eq!(entries, collected);
@@ -564,18 +540,17 @@ mod hasher {
 
         with_set::<i32>(|set| {
             let set = set();
-            let guard = set.guard();
             for i in range.clone() {
-                set.insert(i, &guard);
+                set.insert(i);
             }
 
-            assert!(!set.contains(&i32::min_value(), &guard));
-            assert!(!set.contains(&(range.start - 1), &guard));
+            assert!(!set.contains(&i32::min_value()));
+            assert!(!set.contains(&(range.start - 1)));
             for i in range.clone() {
-                assert!(set.contains(&i, &guard));
+                assert!(set.contains(&i));
             }
-            assert!(!set.contains(&range.end, &guard));
-            assert!(!set.contains(&i32::max_value(), &guard));
+            assert!(!set.contains(&range.end));
+            assert!(!set.contains(&i32::max_value()));
         });
     }
 

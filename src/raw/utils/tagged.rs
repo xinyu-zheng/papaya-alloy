@@ -1,5 +1,7 @@
 use std::sync::atomic::{AtomicPtr, Ordering};
 
+use crate::reclaim::Atomic;
+
 // Polyfill for the unstable strict-provenance APIs.
 #[allow(clippy::missing_safety_doc)]
 #[allow(dead_code)] // `strict_provenance` has stabilized on nightly.
@@ -102,6 +104,40 @@ impl<T> AtomicPtrFetchOps<T> for AtomicPtr<T> {
             // of memory layout. This operation is technically invalid in that
             // it loses provenance, but there is no stable alternative.
             unsafe { &*(self as *const AtomicPtr<T> as *const AtomicUsize) }
+                .fetch_or(value, ordering) as *mut T
+        }
+
+        // Avoid ptr2int under Miri.
+        #[cfg(miri)]
+        {
+            // Returns the ordering for the read in an RMW operation.
+            const fn read_ordering(ordering: Ordering) -> Ordering {
+                match ordering {
+                    Ordering::SeqCst => Ordering::SeqCst,
+                    Ordering::AcqRel => Ordering::Acquire,
+                    _ => Ordering::Relaxed,
+                }
+            }
+
+            self.fetch_update(ordering, read_ordering(ordering), |ptr| {
+                Some(ptr.map_addr(|addr| addr | value))
+            })
+            .unwrap()
+        }
+    }
+}
+
+impl<T> AtomicPtrFetchOps<T> for Atomic<T> {
+    #[inline]
+    fn fetch_or(&self, value: usize, ordering: Ordering) -> *mut T {
+        #[cfg(not(miri))]
+        {
+            use std::sync::atomic::AtomicUsize;
+
+            // Safety: `AtomicPtr` and `AtomicUsize` are identical in terms
+            // of memory layout. This operation is technically invalid in that
+            // it loses provenance, but there is no stable alternative.
+            unsafe { &*(&self.0 as *const AtomicPtr<T> as *const AtomicUsize) }
                 .fetch_or(value, ordering) as *mut T
         }
 
