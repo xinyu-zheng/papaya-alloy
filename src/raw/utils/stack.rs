@@ -1,3 +1,4 @@
+use std::gc::Gc;
 use std::ptr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
@@ -29,10 +30,10 @@ impl<T> Stack<T> {
 
     /// Add an entry to the stack.
     pub fn push(&self, value: T) {
-        let node = Box::into_raw(Box::new(Node {
+        let node = Gc::into_raw(Gc::new(Node {
             value,
             next: ptr::null_mut(),
-        }));
+        })) as *mut Node<T>;
 
         loop {
             // Load the head node.

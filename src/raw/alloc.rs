@@ -1,7 +1,8 @@
 use std::alloc::Layout;
+use std::gc::Gc;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicPtr, AtomicU8, Ordering};
-use std::{alloc, mem, ptr};
+use std::{alloc, iter, mem, ptr};
 
 use crate::reclaim::Atomic;
 
@@ -13,6 +14,46 @@ use super::{probe, State};
 // with respect to `T`, as this struct is stored behind an `AtomicPtr`.
 #[repr(transparent)]
 pub struct RawTable<T>(u8, PhantomData<T>);
+
+#[repr(C)]
+struct TableLayoutEntries<T> {
+    layout: TableLayout<T>,
+    meta: Box<[AtomicU8]>,
+    entries: Box<[AtomicPtr<T>]>,
+}
+
+impl<T> TableLayoutEntries<T> {
+    pub fn new(len: usize) -> Self {
+        assert!(len.is_power_of_two());
+
+        // Pad the meta table to fulfill the alignment requirement of an entry.
+        let len = len.max(mem::align_of::<AtomicPtr<T>>());
+        let mask = len - 1;
+        let limit = probe::limit(len);
+
+        let meta = iter::repeat_with(|| AtomicU8::new(super::meta::EMPTY))
+            .take(len)
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
+
+        let entries = iter::repeat_with(|| AtomicPtr::default())
+            .take(len)
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
+
+        TableLayoutEntries {
+            layout: TableLayout {
+                mask,
+                limit,
+                meta: [],
+                entries: [],
+                state: State::default(),
+            },
+            meta,
+            entries,
+        }
+    }
+}
 
 // The layout of the table allocation.
 #[repr(C)]
@@ -59,6 +100,7 @@ impl<T> Clone for Table<T> {
 impl<T> Table<T> {
     // Allocate a table with the provided length and collector.
     pub fn alloc(len: usize) -> Table<T> {
+        /*
         assert!(len.is_power_of_two());
 
         // Pad the meta table to fulfill the alignment requirement of an entry.
@@ -92,12 +134,14 @@ impl<T> Table<T> {
                 .cast::<u8>()
                 .write_bytes(super::meta::EMPTY, len);
         }
+        */
+        let table_layout_entries: Gc<TableLayoutEntries<T>> = Gc::new(TableLayoutEntries::new(len));
 
         Table {
-            mask,
-            limit,
+            mask: table_layout_entries.layout.mask,
+            limit: table_layout_entries.layout.limit,
             // Invariant: We allocated and initialized the allocation above.
-            raw: ptr.cast::<RawTable<T>>(),
+            raw: (Gc::into_raw(table_layout_entries) as *mut RawTable<T>).cast::<RawTable<T>>(),
         }
     }
 
@@ -135,11 +179,7 @@ impl<T> Table<T> {
     pub unsafe fn meta(&self, i: usize) -> &AtomicU8 {
         debug_assert!(i < self.len());
 
-        // Safety: The caller guarantees the index is in-bounds.
-        unsafe {
-            let meta = self.raw.add(mem::size_of::<TableLayout<T>>());
-            &*meta.cast::<AtomicU8>().add(i)
-        }
+        unsafe { &(*self.raw.cast::<TableLayoutEntries<T>>()).meta[i] }
     }
 
     // Returns the entry at the given index.
@@ -148,15 +188,10 @@ impl<T> Table<T> {
     //
     // The index must be in-bounds for the length of the table.
     #[inline]
-    pub unsafe fn entry(&self, i: usize) -> &Atomic<T> {
+    pub unsafe fn entry(&self, i: usize) -> &AtomicPtr<T> {
         debug_assert!(i < self.len());
 
-        // Safety: The caller guarantees the index is in-bounds.
-        unsafe {
-            let meta = self.raw.add(mem::size_of::<TableLayout<T>>());
-            let entries = meta.add(self.len()).cast::<Atomic<T>>();
-            &*entries.add(i)
-        }
+        unsafe { &(*self.raw.cast::<TableLayoutEntries<T>>()).entries[i] }
     }
 
     /// Returns the length of the table.
@@ -230,6 +265,6 @@ fn layout() {
         // The capacity is padded for pointer alignment.
         assert_eq!(table.mask, 7);
         assert_eq!(table.len(), 8);
-        Table::dealloc(table);
+        //Table::dealloc(table);
     }
 }

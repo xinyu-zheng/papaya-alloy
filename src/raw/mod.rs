@@ -25,9 +25,6 @@ pub struct HashMap<K, V, S> {
     /// A pointer to the root table.
     table: AtomicPtr<RawTable<Entry<K, V>>>,
 
-    /// Collector for memory reclamation.
-    collector: Collector,
-
     /// The resize mode, either blocking or incremental.
     resize: ResizeMode,
 
@@ -215,16 +212,10 @@ enum InsertStatus<K, V> {
 impl<K, V, S> HashMap<K, V, S> {
     /// Creates new hash-table with the given options.
     #[inline]
-    pub fn new(
-        capacity: usize,
-        hasher: S,
-        collector: Collector,
-        resize: ResizeMode,
-    ) -> HashMap<K, V, S> {
+    pub fn new(capacity: usize, hasher: S, resize: ResizeMode) -> HashMap<K, V, S> {
         // The table is lazily allocated.
         if capacity == 0 {
             return HashMap {
-                collector,
                 resize,
                 hasher,
                 initial_capacity: 1,
@@ -240,25 +231,29 @@ impl<K, V, S> HashMap<K, V, S> {
         HashMap {
             hasher,
             resize,
-            collector,
             initial_capacity: capacity,
             table: AtomicPtr::new(table.raw),
             count: Counter::default(),
         }
     }
 
+    /*
     /// Returns a guard for this collector
     pub fn guard(&self) -> MapGuard<LocalGuard<'_>> {
         // Safety: Created the guard from our collector.
         unsafe { MapGuard::new(self.collector().enter()) }
     }
+    */
 
+    /*
     /// Returns an owned guard for this collector
     pub fn owned_guard(&self) -> MapGuard<OwnedGuard<'_>> {
         // Safety: Created the guard from our collector.
         unsafe { MapGuard::new(self.collector().enter_owned()) }
     }
+    */
 
+    /*
     /// Verify a guard is valid to use with this map.
     #[inline]
     pub fn verify<'g, G>(&self, guard: &'g G) -> &'g MapGuard<G>
@@ -274,6 +269,7 @@ impl<K, V, S> HashMap<K, V, S> {
         // Safety: Verified the guard above.
         unsafe { MapGuard::from_ref(guard) }
     }
+    */
 
     /// Returns a reference to the root hash-table.
     #[inline]
@@ -285,11 +281,13 @@ impl<K, V, S> HashMap<K, V, S> {
         unsafe { Table::from_raw(raw) }
     }
 
+    /*
     /// Returns a reference to the collector.
     #[inline]
     pub fn collector(&self) -> &Collector {
         &self.collector
     }
+    */
 
     /// Returns the number of entries in the table.
     #[inline]
@@ -1821,7 +1819,7 @@ where
             // Someone beat us, deallocate our table and use the table that was written.
             Err(found) => {
                 // Safety: We allocated the table above and never shared it.
-                unsafe { Table::dealloc(new) }
+                //unsafe { Table::dealloc(new) }
 
                 // Safety: The table was just initialized.
                 unsafe { Table::from_raw(found) }
@@ -2279,7 +2277,7 @@ where
         entry.store(copied, Ordering::SeqCst);
 
         // Notify any writers that the copy has completed.
-        table.state().parker.unpark(&entry.0);
+        table.state().parker.unpark(entry);
     }
 
     // Copy an entry into the table, returning the index it was inserted into.
@@ -2413,7 +2411,6 @@ where
                     // Safety: `table.raw` is a valid pointer to the table we just copied from.
                     // Additionally, the CAS above made the previous table unreachable from the
                     // root pointer, allowing it to be safely retired.
-                    // FIXME
                     /*
                     unsafe {
                         guard.defer_retire(table.raw, |table, collector| {
@@ -2481,7 +2478,7 @@ where
 
         // Park until the copy completes.
         let parker = &table.state().parker;
-        parker.park(&entry.0, |entry| entry.addr() & Entry::COPIED == 0);
+        parker.park(entry, |entry| entry.addr() & Entry::COPIED == 0);
     }
 
     /// Retire an entry that was removed from the current table, but may still be reachable from
@@ -2639,6 +2636,7 @@ impl<K, V> Clone for Iter<'_, K, V> {
 
 impl<K, V, S> Drop for HashMap<K, V, S> {
     fn drop(&mut self) {
+        /*
         let mut raw = *self.table.get_mut();
 
         // Make sure all objects are reclaimed before the collector is dropped.
@@ -2669,6 +2667,7 @@ impl<K, V, S> Drop for HashMap<K, V, S> {
             // Continue for all nested tables.
             raw = next;
         }
+        */
     }
 }
 
@@ -2680,7 +2679,7 @@ impl<K, V, S> Drop for HashMap<K, V, S> {
 unsafe fn drop_entries<K, V>(table: Table<Entry<K, V>>) {
     for i in 0..table.len() {
         // Safety: `i` is in-bounds and we have unique access to the table.
-        let entry = unsafe { (*table.entry(i).0.as_ptr()).unpack() };
+        let entry = unsafe { (*table.entry(i).as_ptr()).unpack() };
 
         // The entry was copied, or there is nothing to deallocate.
         if entry.ptr.is_null() || entry.tag() & Entry::COPYING != 0 {

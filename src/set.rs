@@ -119,7 +119,7 @@ impl<K, S> HashSetBuilder<K, S> {
     /// Construct a [`HashSet`] from the builder, using the configured options.
     pub fn build(self) -> HashSet<K, S> {
         HashSet {
-            raw: raw::HashMap::new(self.capacity, self.hasher, self.collector, self.resize_mode),
+            raw: raw::HashMap::new(self.capacity, self.hasher, self.resize_mode),
         }
     }
 }
@@ -243,12 +243,7 @@ impl<K, S> HashSet<K, S> {
     /// ```
     pub fn with_capacity_and_hasher(capacity: usize, hash_builder: S) -> HashSet<K, S> {
         HashSet {
-            raw: raw::HashMap::new(
-                capacity,
-                hash_builder,
-                Collector::default(),
-                ResizeMode::default(),
-            ),
+            raw: raw::HashMap::new(capacity, hash_builder, ResizeMode::default()),
         }
     }
 
@@ -258,9 +253,7 @@ impl<K, S> HashSet<K, S> {
     /// for as long as it is held. See the [crate-level documentation](crate#usage) for details.
     #[inline]
     pub fn pin(&self) -> HashSetRef<'_, K, S> {
-        HashSetRef {
-            set: self,
-        }
+        HashSetRef { set: self }
     }
 
     /// Returns a pinned reference to the set.
@@ -273,11 +266,10 @@ impl<K, S> HashSet<K, S> {
     /// for as long as it is held. See the [crate-level documentation](crate#usage) for details.
     #[inline]
     pub fn pin_owned(&self) -> HashSetRef<'_, K, S> {
-        HashSetRef {
-            set: self,
-        }
+        HashSetRef { set: self }
     }
 
+    /*
     /// Returns a guard for use with this set.
     ///
     /// Note that holding on to a guard prevents garbage collection.
@@ -286,7 +278,9 @@ impl<K, S> HashSet<K, S> {
     pub fn guard(&self) -> LocalGuard<'_> {
         self.raw.collector().enter()
     }
+    */
 
+    /*
     /// Returns an owned guard for use with this set.
     ///
     /// Owned guards implement `Send` and `Sync`, allowing them to be held across
@@ -299,6 +293,7 @@ impl<K, S> HashSet<K, S> {
     pub fn owned_guard(&self) -> OwnedGuard<'_> {
         self.raw.collector().enter_owned()
     }
+    */
 }
 
 impl<K, S> HashSet<K, S>

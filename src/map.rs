@@ -58,7 +58,6 @@ unsafe impl<K: Send + Sync, V: Send + Sync, S: Sync> Sync for HashMap<K, V, S> {
 pub struct HashMapBuilder<K, V, S = RandomState> {
     hasher: S,
     capacity: usize,
-    collector: Collector,
     resize_mode: ResizeMode,
     _kv: PhantomData<(K, V)>,
 }
@@ -77,7 +76,6 @@ impl<K, V> HashMapBuilder<K, V> {
         HashMapBuilder {
             hasher,
             capacity: self.capacity,
-            collector: self.collector,
             resize_mode: self.resize_mode,
             _kv: PhantomData,
         }
@@ -94,7 +92,6 @@ impl<K, V, S> HashMapBuilder<K, V, S> {
         HashMapBuilder {
             capacity,
             hasher: self.hasher,
-            collector: self.collector,
             resize_mode: self.resize_mode,
             _kv: PhantomData,
         }
@@ -106,11 +103,11 @@ impl<K, V, S> HashMapBuilder<K, V, S> {
             resize_mode,
             hasher: self.hasher,
             capacity: self.capacity,
-            collector: self.collector,
             _kv: PhantomData,
         }
     }
 
+    /*
     /// Set the [`seize::Collector`] used for garbage collection.
     ///
     /// This method may be useful when you want more control over garbage collection.
@@ -126,11 +123,12 @@ impl<K, V, S> HashMapBuilder<K, V, S> {
             _kv: PhantomData,
         }
     }
+    */
 
     /// Construct a [`HashMap`] from the builder, using the configured options.
     pub fn build(self) -> HashMap<K, V, S> {
         HashMap {
-            raw: raw::HashMap::new(self.capacity, self.hasher, self.collector, self.resize_mode),
+            raw: raw::HashMap::new(self.capacity, self.hasher, self.resize_mode),
         }
     }
 }
@@ -139,7 +137,6 @@ impl<K, V, S> fmt::Debug for HashMapBuilder<K, V, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("HashMapBuilder")
             .field("capacity", &self.capacity)
-            .field("collector", &self.collector)
             .field("resize_mode", &self.resize_mode)
             .finish()
     }
@@ -228,7 +225,6 @@ impl<K, V> HashMap<K, V> {
         HashMapBuilder {
             capacity: 0,
             hasher: RandomState::default(),
-            collector: Collector::new(),
             resize_mode: ResizeMode::default(),
             _kv: PhantomData,
         }
@@ -297,12 +293,7 @@ impl<K, V, S> HashMap<K, V, S> {
     /// ```
     pub fn with_capacity_and_hasher(capacity: usize, hash_builder: S) -> HashMap<K, V, S> {
         HashMap {
-            raw: raw::HashMap::new(
-                capacity,
-                hash_builder,
-                Collector::default(),
-                ResizeMode::default(),
-            ),
+            raw: raw::HashMap::new(capacity, hash_builder, ResizeMode::default()),
         }
     }
 
@@ -312,9 +303,7 @@ impl<K, V, S> HashMap<K, V, S> {
     /// for as long as it is held. See the [crate-level documentation](crate#usage) for details.
     #[inline]
     pub fn pin(&self) -> HashMapRef<'_, K, V, S> {
-        HashMapRef {
-            map: self,
-        }
+        HashMapRef { map: self }
     }
 
     /// Returns a pinned reference to the map.
@@ -327,11 +316,10 @@ impl<K, V, S> HashMap<K, V, S> {
     /// for as long as it is held. See the [crate-level documentation](crate#usage) for details.
     #[inline]
     pub fn pin_owned(&self) -> HashMapRef<'_, K, V, S> {
-        HashMapRef {
-            map: self,
-        }
+        HashMapRef { map: self }
     }
 
+    /*
     /// Returns a guard for use with this map.
     ///
     /// Note that holding on to a guard prevents garbage collection.
@@ -340,7 +328,9 @@ impl<K, V, S> HashMap<K, V, S> {
     pub fn guard(&self) -> LocalGuard<'_> {
         self.raw.collector().enter()
     }
+    */
 
+    /*
     /// Returns an owned guard for use with this map.
     ///
     /// Owned guards implement `Send` and `Sync`, allowing them to be held across
@@ -353,6 +343,7 @@ impl<K, V, S> HashMap<K, V, S> {
     pub fn owned_guard(&self) -> OwnedGuard<'_> {
         self.raw.collector().enter_owned()
     }
+    */
 }
 
 impl<K, V, S> HashMap<K, V, S>
@@ -993,8 +984,7 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn keys<'g>(&self) -> Keys<'g, K, V>
-    {
+    pub fn keys<'g>(&self) -> Keys<'g, K, V> {
         Keys { iter: self.iter() }
     }
 
@@ -1021,8 +1011,7 @@ where
     /// }
     /// ```
     #[inline]
-    pub fn values<'g>(&self) -> Values<'g, K, V>
-    {
+    pub fn values<'g>(&self) -> Values<'g, K, V> {
         Values { iter: self.iter() }
     }
 }
@@ -1199,7 +1188,6 @@ where
         let other = HashMap::builder()
             .capacity(self.len())
             .hasher(self.raw.hasher.clone())
-            .collector(seize::Collector::new())
             .build();
 
         {
