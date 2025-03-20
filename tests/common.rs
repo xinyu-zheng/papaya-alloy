@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use papaya::{HashMap, HashSet, ResizeMode};
+use papaya_alloy::{HashMap, HashSet, ResizeMode};
 
 // Run the test on different configurations of a `HashMap`.
 pub fn with_map<K, V>(mut test: impl FnMut(&dyn Fn() -> HashMap<K, V>)) {

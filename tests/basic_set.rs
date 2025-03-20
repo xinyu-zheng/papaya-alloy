@@ -1,6 +1,6 @@
 // Adapted from: https://github.com/jonhoo/flurry/blob/main/tests/basic.rs
 
-use papaya::HashSet;
+use papaya_alloy::HashSet;
 
 use std::hash::{BuildHasher, BuildHasherDefault, Hasher};
 use std::sync::Arc;
@@ -197,7 +197,6 @@ fn concurrent_resize_and_get() {
 
         // make sure all the entries still exist after all the resizes
         {
-
             for i in 0..1024 {
                 let v = set.get(&i).unwrap();
                 assert_eq!(v, &i);

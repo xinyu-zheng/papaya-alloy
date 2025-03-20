@@ -9,16 +9,16 @@ use hdrhistogram::{Histogram, SyncHistogram};
 
 fn main() {
     println!("=== papaya (incremental) ===");
-    p99_insert(papaya::HashMap::new(), |map, i| {
+    p99_insert(papaya_alloy::HashMap::new(), |map, i| {
         map.pin().insert(i, ());
     });
-    p99_concurrent_insert("papaya", papaya::HashMap::new(), |map, i| {
+    p99_concurrent_insert("papaya", papaya_alloy::HashMap::new(), |map, i| {
         map.pin().insert(i, ());
     });
 
     println!("=== papaya (blocking) ===");
-    let map = papaya::HashMap::builder()
-        .resize_mode(papaya::ResizeMode::Blocking)
+    let map = papaya_alloy::HashMap::builder()
+        .resize_mode(papaya_alloy::ResizeMode::Blocking)
         .build();
 
     p99_insert(map.clone(), |map, i| {

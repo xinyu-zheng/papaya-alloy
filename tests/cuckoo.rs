@@ -1,6 +1,6 @@
 // Adapted from: https://github.com/jonhoo/flurry/blob/main/tests/cuckoo/stress.rs
 
-use papaya::{HashMap, ResizeMode};
+use papaya_alloy::{HashMap, ResizeMode};
 
 use rand::distributions::{Distribution, Uniform};
 

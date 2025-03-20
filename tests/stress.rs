@@ -1,4 +1,4 @@
-use papaya::{Compute, HashMap, Operation};
+use papaya_alloy::{Compute, HashMap, Operation};
 use rand::prelude::*;
 
 use std::hash::Hash;

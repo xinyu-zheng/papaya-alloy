@@ -1,6 +1,6 @@
 // Adapted from: https://github.com/jonhoo/flurry/blob/main/tests/basic.rs
 
-use papaya::{Compute, HashMap, OccupiedError, Operation};
+use papaya_alloy::{Compute, HashMap, OccupiedError, Operation};
 
 use std::hash::{BuildHasher, BuildHasherDefault, Hasher};
 use std::sync::Arc;
@@ -509,7 +509,6 @@ fn concurrent_resize_and_get() {
 
         // make sure all the entries still exist after all the resizes
         {
-
             for i in 0..1024 {
                 let v = map.get(&i).unwrap();
                 assert_eq!(v, &i);
@@ -556,7 +555,6 @@ fn different_size_maps_not_equal() {
         with_map::<usize, usize>(|map2| {
             let map2 = map2();
             {
-
                 map1.insert(1, 0);
                 map1.insert(2, 0);
                 map1.insert(3, 0);
