@@ -2636,7 +2636,6 @@ impl<K, V> Clone for Iter<'_, K, V> {
 
 impl<K, V, S> Drop for HashMap<K, V, S> {
     fn drop(&mut self) {
-        /*
         let mut raw = *self.table.get_mut();
 
         // Make sure all objects are reclaimed before the collector is dropped.
@@ -2645,7 +2644,7 @@ impl<K, V, S> Drop for HashMap<K, V, S> {
         // using the shared collector pointer that is invalidated by drop.
         //
         // Safety: We have a unique reference to the collector.
-        unsafe { self.collector.reclaim_all() };
+        //unsafe { self.collector.reclaim_all() };
 
         // Drop all nested tables and entries.
         while !raw.is_null() {
@@ -2662,12 +2661,11 @@ impl<K, V, S> Drop for HashMap<K, V, S> {
 
             // Safety: We have unique access to the table and do
             // not access it after this call.
-            unsafe { drop_table(table, &self.collector) };
+            //unsafe { drop_table(table, &self.collector) };
 
             // Continue for all nested tables.
             raw = next;
         }
-        */
     }
 }
 
@@ -2679,7 +2677,7 @@ impl<K, V, S> Drop for HashMap<K, V, S> {
 unsafe fn drop_entries<K, V>(table: Table<Entry<K, V>>) {
     for i in 0..table.len() {
         // Safety: `i` is in-bounds and we have unique access to the table.
-        let entry = unsafe { (*table.entry(i).as_ptr()).unpack() };
+        let mut entry = unsafe { (*table.entry(i).as_ptr()).unpack() };
 
         // The entry was copied, or there is nothing to deallocate.
         if entry.ptr.is_null() || entry.tag() & Entry::COPYING != 0 {
@@ -2692,7 +2690,8 @@ unsafe fn drop_entries<K, V>(table: Table<Entry<K, V>>) {
         // not be accessed after this call. Additionally, we ensured
         // that the entry is not copied to avoid double freeing entries
         // that may exist in multiple tables.
-        unsafe { drop(Box::from_raw(entry.ptr)) }
+        //unsafe { drop(Box::from_raw(entry.ptr)) }
+        entry.ptr = std::ptr::null_mut();
     }
 }
 
