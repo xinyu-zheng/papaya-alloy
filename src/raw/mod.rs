@@ -2692,6 +2692,7 @@ unsafe fn drop_entries<K, V>(table: Table<Entry<K, V>>) {
         // that may exist in multiple tables.
         //unsafe { drop(Box::from_raw(entry.ptr)) }
         entry.ptr = std::ptr::null_mut();
+        entry.raw = std::ptr::null_mut();
     }
 }
 

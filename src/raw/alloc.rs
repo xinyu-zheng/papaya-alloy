@@ -141,7 +141,7 @@ impl<T> Table<T> {
             mask: table_layout_entries.layout.mask,
             limit: table_layout_entries.layout.limit,
             // Invariant: We allocated and initialized the allocation above.
-            raw: (Gc::into_raw(table_layout_entries) as *mut RawTable<T>).cast::<RawTable<T>>(),
+            raw: Gc::into_raw(table_layout_entries) as *mut RawTable<T>,
         }
     }
 
