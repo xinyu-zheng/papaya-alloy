@@ -222,10 +222,15 @@
 // Clippy trips up with pollyfills.
 #![allow(clippy::incompatible_msrv)]
 #![feature(gc)]
-use std::gc::GcAllocator;
+
+use mimalloc::MiMalloc;
 
 #[global_allocator]
-static A: GcAllocator = GcAllocator;
+static GLOBAL: MiMalloc = MiMalloc;
+//use std::gc::GcAllocator;
+//
+//#[global_allocator]
+//static A: GcAllocator = GcAllocator;
 
 mod map;
 mod raw;

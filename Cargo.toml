@@ -17,6 +17,7 @@ equivalent = "1"
 seize = "0.5"
 serde = { version = "1", optional = true }
 thread-id = "5.0.0"
+mimalloc = "0.1.46"
 
 [dev-dependencies]
 rand = "0.8"
