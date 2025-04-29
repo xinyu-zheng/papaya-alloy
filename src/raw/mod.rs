@@ -2663,7 +2663,6 @@ impl<K, V, S> Drop for HashMap<K, V, S> {
             // Safety: We have unique access to the table and do
             // not access it after this call.
             //unsafe { drop_table(table, &self.collector) };
-            table.raw = null_mut();
 
             // Continue for all nested tables.
             raw = next;
@@ -2693,8 +2692,6 @@ unsafe fn drop_entries<K, V>(table: Table<Entry<K, V>>) {
         // that the entry is not copied to avoid double freeing entries
         // that may exist in multiple tables.
         //unsafe { drop(Box::from_raw(entry.ptr)) }
-        entry.ptr = null_mut();
-        entry.raw = null_mut();
         unsafe { table.null_entry(i); }
     }
 }
