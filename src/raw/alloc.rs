@@ -194,6 +194,13 @@ impl<T> Table<T> {
         unsafe { &(*self.raw.cast::<TableLayoutEntries<T>>()).entries[i] }
     }
 
+    #[inline]
+    pub unsafe fn null_entry(&self, i: usize) {
+        debug_assert!(i < self.len());
+
+        unsafe { (*self.raw.cast::<TableLayoutEntries<T>>()).entries[i] = AtomicPtr::default() }
+    }
+
     /// Returns the length of the table.
     #[inline]
     pub fn len(&self) -> usize {

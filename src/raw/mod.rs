@@ -2679,7 +2679,7 @@ impl<K, V, S> Drop for HashMap<K, V, S> {
 unsafe fn drop_entries<K, V>(table: Table<Entry<K, V>>) {
     for i in 0..table.len() {
         // Safety: `i` is in-bounds and we have unique access to the table.
-        let entry = unsafe { (*table.entry(i).as_ptr()).unpack() };
+        let mut entry = unsafe { (*table.entry(i).as_ptr()).unpack() };
 
         // The entry was copied, or there is nothing to deallocate.
         if entry.ptr.is_null() || entry.tag() & Entry::COPYING != 0 {
@@ -2693,7 +2693,9 @@ unsafe fn drop_entries<K, V>(table: Table<Entry<K, V>>) {
         // that the entry is not copied to avoid double freeing entries
         // that may exist in multiple tables.
         //unsafe { drop(Box::from_raw(entry.ptr)) }
-        unsafe { table.entry(i).store(std::ptr::null_mut(), Ordering::Relaxed); }
+        entry.ptr = null_mut();
+        entry.raw = null_mut();
+        unsafe { table.null_entry(i); }
     }
 }
 
