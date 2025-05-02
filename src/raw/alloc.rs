@@ -1,5 +1,5 @@
 use std::alloc::Layout;
-use std::gc::Gc;
+use std::gc::{FinalizeUnchecked, Gc};
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicPtr, AtomicU8, Ordering};
 use std::{alloc, iter, mem, ptr};
@@ -20,6 +20,12 @@ struct TableLayoutEntries<T> {
     layout: TableLayout<T>,
     meta: Box<[AtomicU8]>,
     entries: Box<[AtomicPtr<T>]>,
+}
+
+impl<T> Drop for TableLayoutEntries<T> {
+    fn drop(&mut self) {
+        eprintln!("Dropping table layout entries");
+    }
 }
 
 impl<T> TableLayoutEntries<T> {
@@ -135,7 +141,7 @@ impl<T> Table<T> {
                 .write_bytes(super::meta::EMPTY, len);
         }
         */
-        let table_layout_entries: Gc<TableLayoutEntries<T>> = Gc::new(TableLayoutEntries::new(len));
+        let table_layout_entries: Gc<FinalizeUnchecked<TableLayoutEntries<T>>> = Gc::new(unsafe { FinalizeUnchecked::new(TableLayoutEntries::new(len)) });
 
         Table {
             mask: table_layout_entries.layout.mask,
