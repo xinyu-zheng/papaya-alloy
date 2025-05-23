@@ -36,7 +36,7 @@ impl Counter {
         // very unlikely even with the exact number of shards as CPUs.
         // FIXME
         //let shard = guard.thread_id() & (self.0.len() - 1);
-        let shard = thread_id::get() & (self.0.len() - 1);
+        let shard = (thread_id::get() >> 21) & (self.0.len() - 1);
         println!("shard: {}, thread_id: {}, len: {}", shard, thread_id::get(), self.0.len());
 
         &self.0[shard].value
