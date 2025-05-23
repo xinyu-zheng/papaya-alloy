@@ -37,6 +37,7 @@ impl Counter {
         // FIXME
         //let shard = guard.thread_id() & (self.0.len() - 1);
         let shard = thread_id::get() & (self.0.len() - 1);
+        println!("shard: {}, thread_id: {}, len: {}", shard, thread_id::get(), self.0.len());
 
         &self.0[shard].value
     }
