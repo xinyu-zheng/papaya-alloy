@@ -35,7 +35,8 @@ impl Counter {
         // the internal thread ID allocator, which makes contention
         // very unlikely even with the exact number of shards as CPUs.
         //let shard = guard.thread_id() & (self.0.len() - 1);
-        let shard = (thread_id::get() >> 21) & (self.0.len() - 1);
+        //let shard = (thread_id::get() >> 21) & (self.0.len() - 1);
+        let shard = 0;
 
 
         &self.0[shard].value
