@@ -2663,6 +2663,7 @@ impl<K, V, S> Drop for HashMap<K, V, S> {
             // Safety: We have unique access to the table and do
             // not access it after this call.
             //unsafe { drop_table(table, &self.collector) };
+            self.table = AtomicPtr::default();
 
             // Continue for all nested tables.
             raw = next;
